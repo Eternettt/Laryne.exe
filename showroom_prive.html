@@ -5,101 +5,261 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Showroom privé - Stringz.exe</title>
 <style>
+  * { box-sizing: border-box; }
   html, body {
     margin: 0;
     padding: 0;
     width: 100%;
     height: 100%;
-    background: #ffffff;
     overflow: hidden;
-    cursor: crosshair;
+    font-family: "Segoe UI", Arial, sans-serif;
   }
 
+  /* ================= EXTÉRIEUR (scénette façon Pokémon) ================= */
   #scene {
     position: relative;
     width: 100%;
     height: 100vh;
+    cursor: crosshair;
+    background-color: #6fbf5a;
+    background-image:
+      repeating-linear-gradient(90deg, rgba(255,255,255,0.05) 0 16px, transparent 16px 32px),
+      repeating-linear-gradient(0deg, rgba(0,0,0,0.04) 0 16px, transparent 16px 32px);
   }
+
+  .grass-tuft {
+    position: absolute;
+    width: 16px; height: 16px;
+    background: #5aa848;
+    border-radius: 3px;
+    opacity: 0.7;
+  }
+
+  .path {
+    position: absolute;
+    background-color: #e8cf8a;
+    background-image: radial-gradient(rgba(0,0,0,0.06) 1px, transparent 1px);
+    background-size: 8px 8px;
+    box-shadow: inset 0 0 0 3px rgba(180,150,90,0.4);
+  }
+
+  .tree { position: absolute; width: 46px; height: 56px; }
+  .tree .trunk {
+    position: absolute;
+    width: 10px; height: 16px;
+    background: #6b4423;
+    left: 18px; top: 40px;
+    border-radius: 2px;
+  }
+  .tree .canopy {
+    position: absolute;
+    width: 46px; height: 44px;
+    background: #2f7d3a;
+    border-radius: 50%;
+    box-shadow: inset -6px -6px 0 rgba(0,0,0,0.12);
+  }
+  .tree .canopy.small {
+    width: 30px; height: 30px;
+    left: 8px; top: -6px;
+    background: #379044;
+  }
+
+  .bush {
+    position: absolute;
+    width: 26px; height: 16px;
+    background: #338040;
+    border-radius: 50%;
+    box-shadow: inset -4px -4px 0 rgba(0,0,0,0.12);
+  }
+
+  .flower {
+    position: absolute;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+  }
+
+  .critter {
+    position: absolute;
+    width: 20px; height: 16px;
+    background: #ff8fc0;
+    border-radius: 50% 50% 45% 45%;
+    box-shadow: inset -3px -3px 0 rgba(0,0,0,0.1);
+    animation: critterBob 1.4s infinite ease-in-out;
+  }
+  .critter::before, .critter::after {
+    content: '';
+    position: absolute;
+    width: 2px; height: 2px;
+    background: #3a1020;
+    border-radius: 50%;
+    top: 6px;
+  }
+  .critter::before { left: 5px; }
+  .critter::after { left: 12px; }
+  @keyframes critterBob {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-4px); }
+  }
+
+  #shop { position: absolute; width: 160px; height: 130px; }
+  #shop .roof {
+    position: absolute;
+    top: 0; left: 0;
+    width: 160px; height: 46px;
+    background: #2b6fe0;
+    border-radius: 10px 10px 0 0;
+    box-shadow: inset 0 -6px 0 rgba(0,0,0,0.15);
+  }
+  #shop .roof::after {
+    content: '';
+    position: absolute;
+    left: 50%; top: 12px;
+    transform: translateX(-50%);
+    width: 34px; height: 34px;
+    background: #fff;
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 5px #2b6fe0;
+  }
+  #shop .roof::before {
+    content: '♥';
+    position: absolute;
+    left: 50%; top: 12px;
+    transform: translateX(-50%);
+    width: 34px; height: 34px;
+    color: #ff5c9d;
+    font-size: 18px;
+    line-height: 34px;
+    text-align: center;
+    z-index: 1;
+  }
+  #shop .walls {
+    position: absolute;
+    top: 46px; left: 0;
+    width: 160px; height: 84px;
+    background: #f4ede0;
+    border: 3px solid #cbb98f;
+    border-top: none;
+  }
+  #shop .door {
+    position: absolute;
+    bottom: 0; left: 50%;
+    transform: translateX(-50%);
+    width: 40px; height: 46px;
+    background: #7a2350;
+    border-radius: 6px 6px 0 0;
+    box-shadow: inset 0 0 0 3px #5a1a38;
+  }
+  #shop .window {
+    position: absolute;
+    top: 14px;
+    width: 26px; height: 22px;
+    background: #bfe3ff;
+    border: 3px solid #cbb98f;
+    border-radius: 3px;
+  }
+  #shop .window.l { left: 14px; }
+  #shop .window.r { right: 14px; }
+
+  #shop-banner {
+    position: absolute;
+    top: -18px; right: -34px;
+    width: 130px;
+    padding: 5px 0;
+    background: linear-gradient(#ff9ecb, #d8388c);
+    color: #fff;
+    font-weight: bold;
+    font-size: 12px;
+    text-align: center;
+    letter-spacing: 0.5px;
+    transform: rotate(18deg);
+    box-shadow: 0 3px 8px rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.6);
+    border-radius: 3px;
+  }
+
+  #shop-hint {
+    position: absolute;
+    top: -40px; left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.65);
+    color: #fff;
+    font-size: 11px;
+    padding: 4px 8px;
+    border-radius: 10px;
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    pointer-events: none;
+  }
+  #shop.near #shop-hint { opacity: 1; }
 
   .shadow {
     position: absolute;
-    width: 24px;
-    height: 7px;
+    width: 24px; height: 7px;
     background: rgba(0,0,0,0.18);
     border-radius: 50%;
     filter: blur(1px);
-    transition: opacity 0.2s ease;
   }
 
   .character {
     position: absolute;
-    width: 26px;
-    height: 34px;
+    width: 26px; height: 34px;
     transform-origin: center bottom;
   }
-
   .character.facing-left { transform: scaleX(-1); }
-
   .part { position: absolute; }
 
-  .cap {
-    width: 22px; height: 9px;
-    background: #e3350d;
-    border-radius: 11px 11px 2px 2px;
-    top: 0; left: 2px;
-    box-shadow: inset 0 -2px 0 rgba(0,0,0,0.15);
+  .hair {
+    width: 20px; height: 12px;
+    background: #d9772e;
+    border-radius: 10px 10px 2px 2px;
+    top: 0; left: 3px;
   }
-  .cap-brim {
-    width: 16px; height: 3px;
-    background: #c41c1c;
-    top: 6px; left: 5px;
-    border-radius: 2px;
-  }
+  .npc .hair { background: #8a8a8a; }
   .face {
-    width: 14px; height: 9px;
+    width: 14px; height: 10px;
     background: #ffd7a8;
-    top: 8px; left: 6px;
+    top: 6px; left: 6px;
     border-radius: 0 0 7px 7px;
   }
   .eye {
     width: 2px; height: 2px;
     background: #222;
-    top: 11px;
+    top: 10px;
     border-radius: 50%;
   }
   .eye.l { left: 8px; }
   .eye.r { left: 14px; }
 
-  .body {
-    width: 18px; height: 11px;
-    background: #e3350d;
-    top: 16px; left: 4px;
+  .torso {
+    width: 16px; height: 13px;
+    background: #ffd7a8;
+    top: 15px; left: 5px;
     border-radius: 4px 4px 3px 3px;
   }
+  .underwear {
+    width: 14px; height: 6px;
+    background: #ff5c9d;
+    top: 23px; left: 6px;
+    border-radius: 0 0 5px 5px;
+    clip-path: polygon(0 0, 100% 0, 65% 100%, 35% 100%);
+  }
+  .npc .underwear { background: #7a2350; }
 
   .arm {
-    width: 4px; height: 8px;
-    background: #e3350d;
-    top: 17px;
+    width: 4px; height: 9px;
+    background: #ffd7a8;
+    top: 16px;
     border-radius: 2px;
     transform-origin: top center;
   }
   .arm.l { left: 0px; }
   .arm.r { left: 22px; }
 
-  .hand {
-    width: 4px; height: 4px;
-    background: #ffd7a8;
-    top: 23px;
-    border-radius: 50%;
-  }
-  .hand.l { left: 0px; }
-  .hand.r { left: 22px; }
-
   .leg {
-    width: 6px; height: 9px;
-    background: #2b4c8c;
-    top: 26px;
+    width: 6px; height: 8px;
+    background: #ffd7a8;
+    top: 27px;
     border-radius: 0 0 2px 2px;
     transform-origin: top center;
   }
@@ -116,91 +276,211 @@
   .shoe.l { left: 4px; }
   .shoe.r { left: 15px; }
 
-  /* --- Animation de marche --- */
   .character.walking .leg.l,
   .character.walking .shoe.l,
-  .character.walking .arm.r {
-    animation: swingL 0.4s infinite ease-in-out;
-  }
+  .character.walking .arm.r { animation: swingL 0.4s infinite ease-in-out; }
   .character.walking .leg.r,
   .character.walking .shoe.r,
-  .character.walking .arm.l {
-    animation: swingR 0.4s infinite ease-in-out;
-  }
+  .character.walking .arm.l { animation: swingR 0.4s infinite ease-in-out; }
   .character.walking { animation: bob 0.4s infinite ease-in-out; }
 
-  @keyframes swingL {
-    0%, 100% { transform: rotate(-18deg); }
-    50% { transform: rotate(18deg); }
-  }
-  @keyframes swingR {
-    0%, 100% { transform: rotate(18deg); }
-    50% { transform: rotate(-18deg); }
-  }
-  @keyframes bob {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-2px); }
-  }
-
-  /* --- Animation d'attente (respiration) --- */
+  @keyframes swingL { 0%,100% { transform: rotate(-18deg); } 50% { transform: rotate(18deg); } }
+  @keyframes swingR { 0%,100% { transform: rotate(18deg); } 50% { transform: rotate(-18deg); } }
+  @keyframes bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
   .character.idle { animation: breathe 1.6s infinite ease-in-out; }
-  @keyframes breathe {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-1px); }
-  }
+  @keyframes breathe { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-1px); } }
 
-  /* --- Obstacle (carré bleu) --- */
-  #obstacle {
-    position: absolute;
-    background: #2b6fe0;
-    border: 3px solid #1a4fb0;
-    border-radius: 6px;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.25);
-  }
-
-  /* --- Bouton Quitter --- */
   #quit-btn {
     position: fixed;
-    top: 16px;
-    right: 16px;
-    z-index: 100;
+    top: 16px; right: 16px;
+    z-index: 200;
     padding: 8px 16px;
     background: linear-gradient(#c2477a, #7a2350);
     color: #fff;
     border: none;
     border-radius: 6px;
-    font-family: "Segoe UI", Arial, sans-serif;
     font-size: 14px;
     font-weight: bold;
     cursor: pointer;
     box-shadow: 0 2px 6px rgba(0,0,0,0.35);
   }
-  #quit-btn:hover {
-    background: linear-gradient(#d1588c, #8a2a5c);
+  #quit-btn:hover { background: linear-gradient(#d1588c, #8a2a5c); }
+
+  #fade {
+    position: fixed;
+    inset: 0;
+    background: #000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.35s ease;
+    z-index: 150;
   }
-  #quit-btn:active {
-    background: linear-gradient(#7a2350, #c2477a);
+  #fade.show { opacity: 1; }
+
+  /* ================= INTÉRIEUR ("maison du style") ================= */
+  #interior {
+    position: fixed;
+    inset: 0;
+    background: linear-gradient(#fbe4ef, #f3b8d3);
+    display: none;
+    flex-direction: column;
+    z-index: 120;
   }
+  #interior.open { display: flex; }
+
+  #call-bar {
+    height: 34%;
+    min-height: 160px;
+    background: #1c1c22;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    color: #9aa;
+    font-size: 13px;
+  }
+  #call-bar .call-label {
+    position: absolute;
+    top: 10px; left: 14px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #ff6b81;
+    font-weight: bold;
+    font-size: 12px;
+  }
+  #call-bar .dot {
+    width: 8px; height: 8px;
+    background: #ff3b5c;
+    border-radius: 50%;
+    animation: pulseDot 1s infinite ease-in-out;
+  }
+  @keyframes pulseDot { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+  #call-bar .waveform {
+    display: flex;
+    align-items: flex-end;
+    gap: 3px;
+    height: 24px;
+  }
+  #call-bar .waveform span {
+    width: 4px;
+    background: #ff6b81;
+    border-radius: 2px;
+    animation: wave 1s infinite ease-in-out;
+  }
+  #call-bar .waveform span:nth-child(2) { animation-delay: 0.1s; }
+  #call-bar .waveform span:nth-child(3) { animation-delay: 0.2s; }
+  #call-bar .waveform span:nth-child(4) { animation-delay: 0.3s; }
+  #call-bar .waveform span:nth-child(5) { animation-delay: 0.4s; }
+  @keyframes wave { 0%,100% { height: 6px; } 50% { height: 22px; } }
+
+  #fitting-area {
+    flex: 1;
+    display: flex;
+    padding: 16px;
+    gap: 16px;
+    overflow: hidden;
+  }
+
+  #mannequin-frame {
+    flex: 1.3;
+    background: #fdf3f7;
+    border: 2px solid #ea8fb8;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    color: #b06084;
+    text-align: center;
+    padding: 20px;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.15);
+  }
+  #mannequin-frame .placeholder-icon { font-size: 40px; margin-bottom: 10px; }
+  #mannequin-frame small { font-size: 12px; color: #c98cae; margin-top: 6px; }
+
+  #model-strip {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+  .model-thumb {
+    background: #fff;
+    border: 2px solid #ea8fb8;
+    border-radius: 8px;
+    height: 90px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #c98cae;
+    font-size: 22px;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .model-thumb:hover { transform: scale(1.04); box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
+  .model-thumb.add-thumb { border-style: dashed; font-size: 26px; font-weight: bold; }
+
+  #back-outside-btn {
+    position: absolute;
+    top: 16px; left: 16px;
+    z-index: 130;
+    padding: 8px 16px;
+    background: linear-gradient(#f0f0f0, #c0c0c0);
+    border: 1px solid #888;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  }
+  #back-outside-btn:hover { background: linear-gradient(#ffffff, #d8d8d8); }
 </style>
 </head>
 <body>
 
 <button id="quit-btn" onclick="window.location.href='index.html'">✕ Quitter</button>
 
+<!-- ============ EXTÉRIEUR ============ -->
 <div id="scene">
-  <div id="obstacle"></div>
+  <div id="shop">
+    <div id="shop-hint">Entrer dans la boutique</div>
+    <div id="shop-banner">LARYNE.EXE</div>
+    <div class="roof"></div>
+    <div class="walls">
+      <div class="window l"></div>
+      <div class="window r"></div>
+      <div class="door"></div>
+    </div>
+  </div>
+
   <div class="shadow" id="shadow"></div>
   <div class="character idle" id="character">
-    <div class="part cap"></div>
-    <div class="part cap-brim"></div>
+    <div class="part hair"></div>
     <div class="part face"></div>
     <div class="part eye l"></div>
     <div class="part eye r"></div>
     <div class="part arm l"></div>
     <div class="part arm r"></div>
-    <div class="part hand l"></div>
-    <div class="part hand r"></div>
-    <div class="part body"></div>
+    <div class="part torso"></div>
+    <div class="part underwear"></div>
+    <div class="part leg l"></div>
+    <div class="part leg r"></div>
+    <div class="part shoe l"></div>
+    <div class="part shoe r"></div>
+  </div>
+
+  <div class="character npc idle" id="npc">
+    <div class="part hair"></div>
+    <div class="part face"></div>
+    <div class="part eye l"></div>
+    <div class="part eye r"></div>
+    <div class="part arm l"></div>
+    <div class="part arm r"></div>
+    <div class="part torso"></div>
+    <div class="part underwear"></div>
     <div class="part leg l"></div>
     <div class="part leg r"></div>
     <div class="part shoe l"></div>
@@ -208,47 +488,144 @@
   </div>
 </div>
 
+<div id="fade"></div>
+
+<!-- ============ INTÉRIEUR ============ -->
+<div id="interior">
+  <button id="back-outside-btn" onclick="exitShop()">← Ressortir</button>
+  <div id="call-bar">
+    <div class="call-label"><span class="dot"></span> En direct</div>
+    <div class="waveform"><span></span><span></span><span></span><span></span><span></span></div>
+  </div>
+  <div id="fitting-area">
+    <div id="mannequin-frame">
+      <div class="placeholder-icon">🧍‍♀️</div>
+      <div>Mannequin</div>
+      <small>(le mockup 3D du modèle sélectionné s'affiche ici)</small>
+    </div>
+    <div id="model-strip">
+      <div class="model-thumb">👙</div>
+      <div class="model-thumb">👙</div>
+      <div class="model-thumb">👙</div>
+      <div class="model-thumb add-thumb" title="Ajouter un modèle">+</div>
+    </div>
+  </div>
+</div>
+
 <script>
   const scene = document.getElementById('scene');
   const character = document.getElementById('character');
+  const npc = document.getElementById('npc');
   const shadow = document.getElementById('shadow');
-  const obstacleEl = document.getElementById('obstacle');
+  const shopEl = document.getElementById('shop');
+  const fade = document.getElementById('fade');
+  const interior = document.getElementById('interior');
 
-  // Le personnage démarre à l'écart de l'obstacle central
-  let pos = { x: window.innerWidth * 0.2, y: window.innerHeight * 0.75 };
-  let waypoints = [];      // suite de points à atteindre (chemin calculé)
+  let pos = { x: window.innerWidth * 0.25, y: window.innerHeight * 0.8 };
+  let waypoints = [];
   let waypointIndex = 0;
-  const speed = 160;       // pixels par seconde
+  const speed = 160;
   let lastTime = null;
   let moving = false;
+  let shopEntered = false;
 
-  const CELL = 16;         // taille des cases de la grille de pathfinding
-  const CHAR_PAD = 14;     // marge de collision autour du perso
+  const CELL = 16;
+  const CHAR_PAD = 12;
 
-  // ---- Obstacle ----
-  function getObstacleRect() {
-    const size = 140;
-    return {
-      x: window.innerWidth / 2 - size / 2,
-      y: window.innerHeight / 2 - size / 2,
-      w: size,
-      h: size
-    };
+  function clearDecor() {
+    scene.querySelectorAll('.path, .tree, .bush, .flower, .grass-tuft, .critter').forEach(el => el.remove());
   }
-  function inflatedObstacle() {
-    const r = getObstacleRect();
+
+  function scatterDecor() {
+    clearDecor();
+    const w = window.innerWidth, h = window.innerHeight;
+    // Densité proportionnelle à la surface de l'écran, pour que ça reste
+    // bien rempli sur un grand écran (au lieu d'un décor clairsemé figé).
+    const density = Math.max(1, (w * h) / (1280 * 800));
+
+    const path = document.createElement('div');
+    path.className = 'path';
+    path.style.left = (w / 2 - 60) + 'px';
+    path.style.top = (h * 0.55) + 'px';
+    path.style.width = '120px';
+    path.style.height = (h * 0.45) + 'px';
+    scene.insertBefore(path, shopEl);
+
+    const treeCount = Math.round(10 * density);
+    for (let i = 0; i < treeCount; i++) {
+      let x, y;
+      if (i % 2 === 0) { x = Math.random() * w; y = Math.random() * (h * 0.15); }
+      else { x = Math.random() < 0.5 ? Math.random() * (w * 0.12) : w - Math.random() * (w * 0.12); y = h * 0.1 + Math.random() * (h * 0.75); }
+      const tree = document.createElement('div');
+      tree.className = 'tree';
+      tree.style.left = x + 'px';
+      tree.style.top = y + 'px';
+      tree.innerHTML = '<div class="canopy"></div><div class="canopy small"></div><div class="trunk"></div>';
+      scene.insertBefore(tree, shopEl);
+    }
+
+    const bushCount = Math.round(14 * density);
+    for (let i = 0; i < bushCount; i++) {
+      const bush = document.createElement('div');
+      bush.className = 'bush';
+      bush.style.left = (Math.random() * w) + 'px';
+      bush.style.top = (h * 0.15 + Math.random() * h * 0.7) + 'px';
+      scene.insertBefore(bush, shopEl);
+    }
+
+    const flowerColors = ['#ff8fc0', '#ffe27a', '#8fd0ff'];
+    const flowerCount = Math.round(20 * density);
+    for (let i = 0; i < flowerCount; i++) {
+      const f = document.createElement('div');
+      f.className = 'flower';
+      f.style.background = flowerColors[i % flowerColors.length];
+      f.style.left = (Math.random() * w) + 'px';
+      f.style.top = (h * 0.1 + Math.random() * h * 0.8) + 'px';
+      scene.insertBefore(f, shopEl);
+    }
+
+    const tuftCount = Math.round(30 * density);
+    for (let i = 0; i < tuftCount; i++) {
+      const t = document.createElement('div');
+      t.className = 'grass-tuft';
+      t.style.left = (Math.random() * w) + 'px';
+      t.style.top = (Math.random() * h) + 'px';
+      scene.insertBefore(t, shopEl);
+    }
+
+    const critterCount = Math.max(3, Math.round(3 * density));
+    for (let i = 0; i < critterCount; i++) {
+      const c = document.createElement('div');
+      c.className = 'critter';
+      c.style.left = (w * 0.15 + Math.random() * w * 0.7) + 'px';
+      c.style.top = (h * 0.2 + Math.random() * h * 0.5) + 'px';
+      c.style.animationDelay = (Math.random() * 1.4) + 's';
+      scene.appendChild(c);
+    }
+  }
+  scatterDecor();
+
+  function getShopRect() {
+    return { x: window.innerWidth / 2 - 80, y: window.innerHeight * 0.18, w: 160, h: 130 };
+  }
+  function inflatedShop() {
+    const r = getShopRect();
     return { x: r.x - CHAR_PAD, y: r.y - CHAR_PAD, w: r.w + CHAR_PAD * 2, h: r.h + CHAR_PAD * 2 };
   }
-  function renderObstacle() {
-    const r = getObstacleRect();
-    obstacleEl.style.left = r.x + 'px';
-    obstacleEl.style.top = r.y + 'px';
-    obstacleEl.style.width = r.w + 'px';
-    obstacleEl.style.height = r.h + 'px';
+  function renderShop() {
+    const r = getShopRect();
+    shopEl.style.left = r.x + 'px';
+    shopEl.style.top = r.y + 'px';
+    npc.style.left = (r.x + r.w + 20) + 'px';
+    npc.style.top = (r.y + r.h - 34) + 'px';
   }
-  renderObstacle();
+  renderShop();
 
-  // ---- Petit tas binaire (min-heap) pour l'A* ----
+  function doorTriggerRect() {
+    const r = getShopRect();
+    return { x: r.x + r.w / 2 - 34, y: r.y + r.h - 10, w: 68, h: 46 };
+  }
+
   class MinHeap {
     constructor() { this.data = []; }
     isEmpty() { return this.data.length === 0; }
@@ -285,7 +662,6 @@
   function rectContainsPoint(rect, x, y) {
     return x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h;
   }
-
   function segmentIntersectsRect(x1, y1, x2, y2, rect) {
     const steps = Math.max(1, Math.ceil(Math.hypot(x2 - x1, y2 - y1) / 4));
     for (let i = 0; i <= steps; i++) {
@@ -294,7 +670,6 @@
     }
     return false;
   }
-
   function findNearestFree(cell, blockedFn, cols, rows) {
     const visited = new Set([cell.c + ',' + cell.r]);
     const queue = [cell];
@@ -314,9 +689,8 @@
     return cell;
   }
 
-  // ---- A* : trouve le chemin le plus court qui évite l'obstacle ----
   function findPath(start, goal) {
-    const obstacle = inflatedObstacle();
+    const obstacle = inflatedShop();
     const cols = Math.ceil(window.innerWidth / CELL);
     const rows = Math.ceil(window.innerHeight / CELL);
 
@@ -329,7 +703,6 @@
 
     let startCell = { c: Math.floor(start.x / CELL), r: Math.floor(start.y / CELL) };
     let goalCell = { c: Math.floor(goal.x / CELL), r: Math.floor(goal.y / CELL) };
-
     if (cellBlocked(goalCell.c, goalCell.r)) goalCell = findNearestFree(goalCell, cellBlocked, cols, rows);
     if (cellBlocked(startCell.c, startCell.r)) startCell = findNearestFree(startCell, cellBlocked, cols, rows);
 
@@ -360,13 +733,11 @@
       const ck = key(current.c, current.r);
       if (closed.has(ck)) continue;
       closed.add(ck);
-
       if (current.c === goalCell.c && current.r === goalCell.r) { found = true; break; }
 
       for (const d of dirs) {
         const nc = current.c + d.dc, nr = current.r + d.dr;
         if (cellBlocked(nc, nr)) continue;
-        // empêche de "couper les coins" en diagonale à travers deux cases bloquées
         if (d.dc !== 0 && d.dr !== 0) {
           if (cellBlocked(current.c + d.dc, current.r) || cellBlocked(current.c, current.r + d.dr)) continue;
         }
@@ -382,7 +753,6 @@
     }
 
     if (!found) return null;
-
     const path = [];
     let curKey = key(goalCell.c, goalCell.r);
     const startKey = key(startCell.c, startCell.r);
@@ -395,14 +765,12 @@
     }
     path.push({ c: startCell.c, r: startCell.r });
     path.reverse();
-
     return path.map(p => ({ x: p.c * CELL + CELL / 2, y: p.r * CELL + CELL / 2 }));
   }
 
-  // ---- Simplifie le chemin en segments droits (le perso ne suit pas chaque case) ----
   function smoothPath(path) {
     if (path.length <= 2) return path;
-    const obstacle = inflatedObstacle();
+    const obstacle = inflatedShop();
     const result = [path[0]];
     let anchor = 0;
     while (anchor < path.length - 1) {
@@ -410,9 +778,7 @@
       for (let j = anchor + 1; j < path.length; j++) {
         if (!segmentIntersectsRect(path[anchor].x, path[anchor].y, path[j].x, path[j].y, obstacle)) {
           farthest = j;
-        } else {
-          break;
-        }
+        } else break;
       }
       result.push(path[farthest]);
       anchor = farthest;
@@ -425,16 +791,69 @@
     character.style.top = (pos.y - 34) + 'px';
     shadow.style.left = (pos.x - 12) + 'px';
     shadow.style.top = (pos.y - 6) + 'px';
+
+    const trigger = doorTriggerRect();
+    const near = rectContainsPoint(
+      { x: trigger.x - 10, y: trigger.y - 10, w: trigger.w + 20, h: trigger.h + 20 },
+      pos.x, pos.y
+    );
+    shopEl.classList.toggle('near', near);
   }
   render();
 
+  function enterShop() {
+    if (shopEntered) return;
+    shopEntered = true;
+    fade.classList.add('show');
+    setTimeout(() => {
+      interior.classList.add('open');
+      fade.classList.remove('show');
+    }, 350);
+  }
+
+  function exitShop() {
+    fade.classList.add('show');
+    setTimeout(() => {
+      interior.classList.remove('open');
+      fade.classList.remove('show');
+
+      // Replace le perso juste devant la boutique, mais HORS de la zone de
+      // déclenchement de la porte, sinon on rentrerait aussitôt à nouveau.
+      const trigger = doorTriggerRect();
+      pos.x = trigger.x + trigger.w / 2;
+      pos.y = trigger.y + trigger.h + 26;
+      waypoints = [];
+      waypointIndex = 0;
+      character.classList.remove('walking');
+      character.classList.add('idle');
+      moving = false;
+
+      shopEntered = false;
+    }, 350);
+  }
+  window.exitShop = exitShop;
+
   scene.addEventListener('click', (e) => {
+    const shopRect = getShopRect();
+    const clickedShop = rectContainsPoint(
+      { x: shopRect.x - 10, y: shopRect.y - 30, w: shopRect.w + 20, h: shopRect.h + 40 },
+      e.clientX, e.clientY
+    );
+
+    if (clickedShop) {
+      const trigger = doorTriggerRect();
+      const goal = { x: trigger.x + trigger.w / 2, y: trigger.y + trigger.h - 4 };
+      const rawPath = findPath(pos, goal);
+      waypoints = rawPath ? smoothPath(rawPath) : [goal];
+      waypointIndex = 0;
+      return;
+    }
+
     const rawPath = findPath(pos, { x: e.clientX, y: e.clientY });
     if (rawPath) {
       waypoints = smoothPath(rawPath);
       waypointIndex = (waypoints.length > 1 && Math.hypot(waypoints[0].x - pos.x, waypoints[0].y - pos.y) < 4) ? 1 : 0;
     } else {
-      // filet de sécurité si aucun chemin trouvé
       waypoints = [{ x: e.clientX, y: e.clientY }];
       waypointIndex = 0;
     }
@@ -445,7 +864,7 @@
     const dt = Math.min((t - lastTime) / 1000, 0.05);
     lastTime = t;
 
-    if (waypointIndex < waypoints.length) {
+    if (!shopEntered && waypointIndex < waypoints.length) {
       const wp = waypoints[waypointIndex];
       const dx = wp.x - pos.x;
       const dy = wp.y - pos.y;
@@ -471,10 +890,13 @@
           character.classList.add('idle');
         }
       }
-    } else if (moving) {
-      moving = false;
-      character.classList.remove('walking');
-      character.classList.add('idle');
+    }
+
+    // Vérifiée à CHAQUE frame (pas seulement pendant un déplacement) : le
+    // personnage peut très bien être déjà arrêté juste devant la porte.
+    if (!shopEntered) {
+      const trigger = doorTriggerRect();
+      if (rectContainsPoint(trigger, pos.x, pos.y)) enterShop();
     }
 
     render();
@@ -482,12 +904,16 @@
   }
   requestAnimationFrame(frame);
 
+  let resizeTimeout;
   window.addEventListener('resize', () => {
-    renderObstacle();
+    renderShop();
     pos.x = Math.min(pos.x, window.innerWidth - 20);
     pos.y = Math.min(pos.y, window.innerHeight - 20);
     waypoints = [];
     waypointIndex = 0;
+
+    clearTimeout(resizeTimeout);
+    resizeTimeout = setTimeout(scatterDecor, 200);
   });
 </script>
 
