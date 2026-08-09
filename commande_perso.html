@@ -163,7 +163,18 @@
   }
   .undies-view .view-label { position: absolute; top: 6px; left: 8px; font-size: 11px; font-weight: bold; color: #b06084; z-index: 5; }
   .undies-shape { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 130px; height: 100px; border-radius: 0 0 60px 60px / 0 0 70px 70px; }
-  .decor-item-placed { position: absolute; font-size: 20px; transform: translate(-50%, -50%); }
+  .decor-item-placed {
+    position: absolute;
+    font-size: 20px;
+    transform: translate(-50%, -50%);
+    cursor: grab;
+    user-select: none;
+    touch-action: none;
+    line-height: 1;
+    padding: 4px;
+  }
+  .decor-item-placed:active,
+  .decor-item-placed.dragging { cursor: grabbing; z-index: 10; }
 
   .decor-menu {
     flex: 1; min-width: 230px; background: #fdf3f7; border: 2px solid #ea8fb8; border-radius: 10px;
@@ -351,7 +362,7 @@ const EXTRAS = [
 ];
 const BASE_PRICE = { string: 24.9, culotte: 29.9, boxer: 32.9, bresilienne: 27.9, 'taille-haute': 31.9 };
 
-let order = { color: null, motif: null, shape: null, size: null, frontDecor: [], backDecor: [], extras: [], specialRequest: '' };
+let order = { color: null, motif: null, shape: null, size: null, decor: [], extras: [], specialRequest: '' };
 
 /* ======================= NAVIGATION ======================= */
 function goTo(step) {
@@ -473,8 +484,55 @@ function renderPlacedDecor() {
       el.style.top = d.y + '%';
       el.textContent = d.icon;
       view.appendChild(el);
+      makeDecorDraggable(el, d, view);
     });
   });
+}
+
+// Clic (ou toucher) et maintien pour déplacer librement un élément posé sur le modèle
+function makeDecorDraggable(el, dataObj, container) {
+  let dragging = false;
+
+  function toPercent(clientX, clientY) {
+    const rect = container.getBoundingClientRect();
+    let px = ((clientX - rect.left) / rect.width) * 100;
+    let py = ((clientY - rect.top) / rect.height) * 100;
+    px = Math.max(4, Math.min(96, px));
+    py = Math.max(4, Math.min(96, py));
+    return { px, py };
+  }
+
+  function startDrag(clientX, clientY) {
+    dragging = true;
+    el.classList.add('dragging');
+  }
+  function moveDrag(clientX, clientY) {
+    if (!dragging) return;
+    const { px, py } = toPercent(clientX, clientY);
+    dataObj.x = px;
+    dataObj.y = py;
+    el.style.left = px + '%';
+    el.style.top = py + '%';
+  }
+  function endDrag() {
+    dragging = false;
+    el.classList.remove('dragging');
+  }
+
+  el.addEventListener('mousedown', (e) => { e.preventDefault(); startDrag(e.clientX, e.clientY); });
+  document.addEventListener('mousemove', (e) => moveDrag(e.clientX, e.clientY));
+  document.addEventListener('mouseup', endDrag);
+
+  el.addEventListener('touchstart', (e) => {
+    const t = e.touches[0];
+    startDrag(t.clientX, t.clientY);
+  }, { passive: true });
+  document.addEventListener('touchmove', (e) => {
+    if (!dragging) return;
+    const t = e.touches[0];
+    moveDrag(t.clientX, t.clientY);
+  }, { passive: true });
+  document.addEventListener('touchend', endDrag);
 }
 
 /* ======================= 5. BOLS D'EXTRAS ======================= */
