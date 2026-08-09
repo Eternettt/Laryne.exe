@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Commande perso - Stringz.exe</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: Arial, Helvetica, sans-serif;
+    background: #ffffff;
+    color: #333;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  #quit-btn {
+    position: fixed;
+    top: 14px; right: 14px;
+    z-index: 500;
+    padding: 7px 14px;
+    background: #f2f2f2;
+    color: #7a2350;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  #quit-btn:hover { background: #fff; }
+
+  main {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+  }
+
+  .screen {
+    display: none;
+    width: 100%;
+    max-width: 900px;
+    text-align: center;
+  }
+  .screen.active { display: block; animation: fadeIn 0.35s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+  .panel-title { font-size: 20px; margin-bottom: 30px; color: #5a1a38; font-weight: normal; }
+
+  /* ---- Pantone / motif : rangées de cartes cliquables ---- */
+  .picker-row {
+    display: flex;
+    justify-content: center;
+    gap: 26px;
+    flex-wrap: wrap;
+  }
+  .pantone-card {
+    width: 150px;
+    background: #fff;
+    border: 1px solid #ddd;
+    box-shadow: 0 8px 18px rgba(0,0,0,0.15);
+    padding: 10px 10px 14px;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .pantone-card:hover { transform: translateY(-6px); box-shadow: 0 14px 26px rgba(0,0,0,0.22); }
+  .pantone-swatch { width: 100%; height: 90px; margin-bottom: 8px; }
+  .pantone-code { font-weight: bold; font-size: 12px; color: #111; }
+  .pantone-name { font-size: 10px; color: #555; }
+
+  .motif-swatch-card {
+    width: 130px;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .motif-swatch-card:hover { transform: translateY(-6px); box-shadow: 0 14px 26px rgba(0,0,0,0.2); }
+  .motif-swatch { height: 80px; }
+  .motif-swatch-card .label { text-align: center; padding: 8px 4px; font-size: 12px; font-weight: bold; color: #5a1a38; }
+
+  /* ---- Cooking mama : forme ---- */
+  .clock-wrap { display: flex; justify-content: center; margin-bottom: 6px; }
+  .clock {
+    width: 60px; height: 60px;
+    border-radius: 50%;
+    background: #fff;
+    border: 4px solid #7a2350;
+    position: relative;
+    box-shadow: 0 6px 14px rgba(0,0,0,0.25);
+  }
+  .clock .hand { position: absolute; background: #7a2350; left: 50%; bottom: 50%; transform-origin: bottom center; border-radius: 2px; }
+  .clock .hour { width: 3px; height: 15px; margin-left: -1.5px; animation: rotateHour 6s linear infinite; }
+  .clock .minute { width: 2px; height: 22px; margin-left: -1px; animation: rotateMinute 3s linear infinite; }
+  @keyframes rotateHour { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  @keyframes rotateMinute { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+  #let-cook-banner {
+    display: inline-block;
+    background: linear-gradient(#ff9ecb, #d8388c);
+    color: #fff;
+    padding: 9px 24px;
+    border-radius: 20px;
+    font-size: 17px;
+    font-weight: bold;
+    margin: 8px 0 30px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+  }
+
+  #shape-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 16px;
+    max-width: 700px;
+    margin: 0 auto;
+  }
+  .shape-card {
+    background: #fdf3f7;
+    border: 2px solid #ea8fb8;
+    border-radius: 10px;
+    padding: 18px 10px;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .shape-card:hover { transform: translateY(-5px); box-shadow: 0 10px 18px rgba(0,0,0,0.18); }
+  .shape-card .shape-icon { font-size: 36px; margin-bottom: 6px; }
+  .shape-card b { font-size: 13px; }
+
+  /* ---- popups ---- */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.45);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 300;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-box { background: #fdf3f7; border-radius: 10px; width: 300px; box-shadow: 0 14px 30px rgba(0,0,0,0.4); overflow: hidden; }
+  .modal-titlebar {
+    background: linear-gradient(90deg, #8f0f4f, #d8388c);
+    color: #fff; padding: 8px 12px; font-weight: bold;
+    display: flex; justify-content: space-between; align-items: center; font-size: 13px;
+  }
+  .modal-titlebar .x { cursor: pointer; }
+  .modal-body { padding: 18px; text-align: center; }
+  .size-grid, .color-swatch-grid { display: flex; gap: 8px; justify-content: center; margin-top: 12px; flex-wrap: wrap; }
+  .size-btn {
+    width: 42px; height: 42px; border-radius: 6px; border: 2px solid #ea8fb8;
+    background: #fff; font-weight: bold; cursor: pointer; color: #7a2350;
+  }
+  .size-btn:hover { background: #7a2350; color: #fff; }
+  .color-swatch { width: 30px; height: 30px; border-radius: 50%; cursor: pointer; border: 2px solid #fff; box-shadow: 0 0 0 1px #ccc; }
+
+  /* ---- décoration ---- */
+  .decorate-layout { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; justify-content: center; }
+  .undies-views { display: flex; gap: 14px; flex: 1.4; min-width: 260px; }
+  .undies-view {
+    flex: 1; background: #fff; border: 2px solid #ea8fb8; border-radius: 10px;
+    height: 240px; position: relative; overflow: hidden; box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+  }
+  .undies-view .view-label { position: absolute; top: 6px; left: 8px; font-size: 11px; font-weight: bold; color: #b06084; z-index: 5; }
+  .undies-shape { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 130px; height: 100px; border-radius: 0 0 60px 60px / 0 0 70px 70px; }
+  .decor-item-placed { position: absolute; font-size: 20px; transform: translate(-50%, -50%); }
+
+  .decor-menu {
+    flex: 1; min-width: 230px; background: #fdf3f7; border: 2px solid #ea8fb8; border-radius: 10px;
+    padding: 12px; max-height: 280px; display: flex; flex-direction: column;
+  }
+  .decor-menu h3 { font-size: 13px; margin-bottom: 8px; color: #5a1a38; font-weight: bold; }
+  .decor-list { overflow-y: auto; flex: 1; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .decor-choice { background: #fff; border: 2px solid #ddd; border-radius: 8px; padding: 8px 4px; cursor: pointer; font-size: 20px; }
+  .decor-choice:hover { border-color: #ea8fb8; }
+  .decor-choice small { display: block; font-size: 9px; color: #999; margin-top: 2px; }
+  .scroll-hint { text-align: center; font-size: 15px; color: #ea8fb8; margin-top: 4px; }
+
+  .btn {
+    padding: 10px 22px; border: none; border-radius: 6px; font-weight: bold; font-size: 14px;
+    cursor: pointer; background: linear-gradient(#c2477a, #7a2350); color: #fff; margin-top: 26px;
+  }
+  .btn:hover { background: linear-gradient(#d1588c, #8a2a5c); }
+
+  /* ---- bols extras ---- */
+  #bowls-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 18px; max-width: 780px; margin: 0 auto; }
+  .bowl-card {
+    background: radial-gradient(circle at 35% 30%, #ffffff, #f2d9e6 70%);
+    border: 3px solid #ea8fb8; border-radius: 50% / 40%; padding: 20px 10px; cursor: pointer;
+    transition: transform 0.15s ease; box-shadow: 0 6px 14px rgba(0,0,0,0.12);
+  }
+  .bowl-card:hover { transform: scale(1.05); }
+  .bowl-card.active { border-color: #7a2350; background: radial-gradient(circle at 35% 30%, #fff, #ffd0e8 70%); }
+  .bowl-icon { font-size: 28px; margin-bottom: 6px; }
+  .bowl-card b { font-size: 12px; display: block; }
+  .bowl-card small { font-size: 10px; color: #888; }
+
+  #special-request-box { display: none; margin-top: 16px; }
+  #special-request-box.open { display: block; }
+  #special-request-box textarea {
+    width: 100%; max-width: 460px; display: block; margin: 8px auto 0; padding: 10px;
+    border: 1px solid #ea8fb8; border-radius: 6px; font-family: inherit; font-size: 13px; resize: vertical; min-height: 60px;
+  }
+
+  /* ---- ticket ---- */
+  #receipt-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none; align-items: flex-end; justify-content: center; z-index: 400; }
+  #receipt-overlay.open { display: flex; }
+  #receipt {
+    width: 320px; max-width: 92vw; max-height: 82vh; background: #fffef2; font-family: 'Courier New', monospace;
+    color: #222; padding: 20px 18px 26px; box-shadow: 0 -10px 30px rgba(0,0,0,0.4);
+    transform: translateY(100%); transition: transform 0.45s cubic-bezier(.2,.8,.2,1); overflow-y: auto; border-radius: 8px 8px 0 0; cursor: pointer;
+  }
+  #receipt-overlay.open #receipt { transform: translateY(0); }
+  #receipt h2 { text-align: center; font-size: 16px; margin-bottom: 4px; }
+  #receipt .sub { text-align: center; font-size: 10px; color: #777; margin-bottom: 12px; border-bottom: 1px dashed #999; padding-bottom: 10px; }
+  .receipt-line { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; }
+  .receipt-total { display: flex; justify-content: space-between; font-size: 15px; font-weight: bold; margin-top: 10px; border-top: 1px dashed #999; padding-top: 10px; }
+  #receipt .note { font-size: 10px; color: #999; margin-top: 14px; text-align: center; }
+
+  /* ---- four ---- */
+  .oven { width: 170px; height: 150px; margin: 0 auto 20px; background: #7a2350; border-radius: 12px; position: relative; box-shadow: 0 10px 24px rgba(0,0,0,0.25); }
+  .oven .window { position: absolute; top: 18px; left: 18px; right: 18px; height: 84px; background: #2a0f1c; border-radius: 8px; border: 4px solid #c2477a; overflow: hidden; }
+  .oven .glow { position: absolute; inset: 0; background: radial-gradient(circle, #ffb84d, #ff5c9d 70%); animation: glowPulse 1s infinite ease-in-out; }
+  @keyframes glowPulse { 0%,100% { opacity: 0.6; } 50% { opacity: 1; } }
+  .oven .knob { position: absolute; bottom: 12px; width: 14px; height: 14px; border-radius: 50%; background: #ffd7e8; }
+  .oven .knob.l { left: 26px; } .oven .knob.r { right: 26px; }
+
+  #bake-progress-wrap { width: 240px; margin: 0 auto; background: #fff; border-radius: 8px; overflow: hidden; height: 14px; box-shadow: inset 0 0 4px rgba(0,0,0,0.3); }
+  #bake-progress { height: 100%; width: 0%; background: linear-gradient(90deg, #ffb84d, #ff5c9d); transition: width 0.2s linear; }
+
+  #oven-result { display: none; margin-top: 24px; }
+  #oven-result.show { display: block; }
+</style>
+</head>
+<body>
+
+<button id="quit-btn" onclick="window.location.href='index.html'">✕ Quitter</button>
+
+<main>
+
+  <!-- ================= 1. PANTONE ================= -->
+  <section class="screen active" id="screen-pantone">
+    <div class="picker-row" id="pantone-row"></div>
+  </section>
+
+  <!-- ================= 2. MOTIF ================= -->
+  <section class="screen" id="screen-motif">
+    <div class="picker-row" id="motif-row"></div>
+  </section>
+
+  <!-- ================= 3. COOKING MAMA - FORME ================= -->
+  <section class="screen" id="screen-shape">
+    <div class="clock-wrap"><div class="clock"><div class="hand hour"></div><div class="hand minute"></div></div></div>
+    <div id="let-cook-banner">🍳 Cuisines ta culotte !</div>
+    <div id="shape-grid"></div>
+  </section>
+
+  <!-- ================= 4. DÉCORATION ================= -->
+  <section class="screen" id="screen-decorate">
+    <div class="panel-title">Décore ta création</div>
+    <div class="decorate-layout">
+      <div class="undies-views">
+        <div class="undies-view" id="view-front"><div class="view-label">Devant</div><div class="undies-shape" id="shape-front"></div></div>
+        <div class="undies-view" id="view-back"><div class="view-label">Dos</div><div class="undies-shape" id="shape-back"></div></div>
+      </div>
+      <div class="decor-menu">
+        <h3>Prints &amp; broderies</h3>
+        <div class="decor-list" id="decor-list"></div>
+        <div class="scroll-hint">▼</div>
+      </div>
+    </div>
+    <button class="btn" onclick="goTo('bowls')">C'est prêt →</button>
+  </section>
+
+  <!-- ================= 5. BOLS D'EXTRAS ================= -->
+  <section class="screen" id="screen-bowls">
+    <div class="panel-title">Mélange les ingrédients</div>
+    <div id="bowls-grid"></div>
+    <div id="special-request-box">
+      <textarea id="special-request-text" placeholder="Ta demande particulière..."></textarea>
+    </div>
+    <button class="btn" onclick="mixAndShowReceipt()">🥣 Mélanger</button>
+  </section>
+
+  <!-- ================= 6. CUISSON ================= -->
+  <section class="screen" id="screen-oven">
+    <div class="panel-title" id="oven-title">Ta culotte est en cuisson...</div>
+    <div class="oven"><div class="window"><div class="glow"></div></div><div class="knob l"></div><div class="knob r"></div></div>
+    <div id="bake-progress-wrap"><div id="bake-progress"></div></div>
+    <div id="oven-result">
+      <div class="panel-title">🎉 C'est prêt !</div>
+      <button class="btn" onclick="window.location.href='boutique.html'">Retour à la boutique</button>
+    </div>
+  </section>
+
+</main>
+
+<div class="modal-overlay" id="size-modal">
+  <div class="modal-box">
+    <div class="modal-titlebar"><span>Choisis ta taille</span><span class="x" onclick="closeModal('size-modal')">✕</span></div>
+    <div class="modal-body"><div id="size-modal-shape-name" style="font-weight:bold;"></div><div class="size-grid" id="size-grid"></div></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="decor-color-modal">
+  <div class="modal-box">
+    <div class="modal-titlebar"><span id="decor-color-title">Couleur</span><span class="x" onclick="closeModal('decor-color-modal')">✕</span></div>
+    <div class="modal-body"><div>Choisis une couleur :</div><div class="color-swatch-grid" id="decor-color-grid"></div></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="receipt-overlay"><div id="receipt"></div></div>
+
+<script>
+/* ======================= DONNÉES ======================= */
+const PANTONES = [
+  { code: '18-2043 TCX', name: 'Raspberry Sorbet', hex: '#c2477a' },
+  { code: '18-4140 TPX', name: 'Blue Atoll', hex: '#3a7ca5' },
+  { code: '14-0952 TPX', name: 'Sun Orange', hex: '#e8a24a' },
+];
+const MOTIFS = [
+  { id: 'pois', name: 'Pois', css: 'radial-gradient(#fff 20%, transparent 21%) 0 0/14px 14px' },
+  { id: 'rayures', name: 'Rayures', css: 'repeating-linear-gradient(45deg, #fff 0 6px, transparent 6px 12px)' },
+  { id: 'leopard', name: 'Léopard', css: 'radial-gradient(#3a2a1a 30%, transparent 31%) 0 0/16px 16px, radial-gradient(#3a2a1a 25%, transparent 26%) 8px 8px/16px 16px' },
+];
+const SHAPES = [
+  { id: 'string', name: 'String', icon: '🩲' },
+  { id: 'culotte', name: 'Culotte classique', icon: '🎀' },
+  { id: 'boxer', name: 'Boxer', icon: '🩳' },
+  { id: 'bresilienne', name: 'Brésilienne', icon: '✨' },
+  { id: 'taille-haute', name: 'Taille haute', icon: '⬆️' },
+];
+const SIZES = ['XS', 'S', 'M', 'L', 'XL'];
+const DECOR_ITEMS = [
+  { id: 'fleur', name: 'Fleur brodée', icon: '🌸', price: 4 },
+  { id: 'noeud', name: 'Nœud', icon: '🎀', price: 3 },
+  { id: 'etoile', name: 'Étoile', icon: '⭐', price: 3 },
+  { id: 'coeur', name: 'Cœur', icon: '❤️', price: 3 },
+  { id: 'initiales', name: 'Initiales brodées', icon: '🔤', price: 6 },
+  { id: 'dentelle', name: 'Liseré dentelle', icon: '🕸️', price: 5 },
+  { id: 'papillon', name: 'Papillon', icon: '🦋', price: 4 },
+  { id: 'lune', name: 'Lune', icon: '🌙', price: 3 },
+];
+const DECOR_COLORS = ['#ffffff', '#ff5c9d', '#7a2350', '#ffd166', '#5a7fb5', '#111111'];
+const EXTRAS = [
+  { id: 'piercing', name: 'Piercing déco', icon: '💎', price: 5 },
+  { id: 'sequins', name: 'Séquins', icon: '✨', price: 4 },
+  { id: 'rubans', name: 'Rubans', icon: '🎗️', price: 3 },
+  { id: 'clous', name: 'Clous / studs', icon: '🔘', price: 5 },
+  { id: 'special', name: 'Demande particulière', icon: '📝', price: 8, special: true },
+];
+const BASE_PRICE = { string: 24.9, culotte: 29.9, boxer: 32.9, bresilienne: 27.9, 'taille-haute': 31.9 };
+
+let order = { color: null, motif: null, shape: null, size: null, frontDecor: [], backDecor: [], extras: [], specialRequest: '' };
+
+/* ======================= NAVIGATION ======================= */
+function goTo(step) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + step).classList.add('active');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  if (step === 'oven') startBaking();
+}
+
+/* ======================= 1. PANTONE (1 clic = étape suivante) ======================= */
+function renderPantoneRow() {
+  const row = document.getElementById('pantone-row');
+  row.innerHTML = '';
+  PANTONES.forEach(c => {
+    const card = document.createElement('div');
+    card.className = 'pantone-card';
+    card.innerHTML = `<div class="pantone-swatch" style="background:${c.hex};"></div><div class="pantone-code">PANTONE®</div><div class="pantone-code">${c.code}</div><div class="pantone-name">${c.name}</div>`;
+    card.onclick = () => { order.color = c; goTo('motif'); };
+    row.appendChild(card);
+  });
+}
+
+/* ======================= 2. MOTIF (1 clic = étape suivante) ======================= */
+function renderMotifRow() {
+  const row = document.getElementById('motif-row');
+  row.innerHTML = '';
+  MOTIFS.forEach(m => {
+    const card = document.createElement('div');
+    card.className = 'motif-swatch-card';
+    card.innerHTML = `<div class="motif-swatch" style="background:#fff;background-image:${m.css};"></div><div class="label">${m.name}</div>`;
+    card.onclick = () => { order.motif = m; goTo('shape'); };
+    row.appendChild(card);
+  });
+}
+
+/* ======================= 3. FORME + TAILLE ======================= */
+function renderShapeGrid() {
+  const grid = document.getElementById('shape-grid');
+  grid.innerHTML = '';
+  SHAPES.forEach(s => {
+    const card = document.createElement('div');
+    card.className = 'shape-card';
+    card.innerHTML = `<div class="shape-icon">${s.icon}</div><b>${s.name}</b>`;
+    card.onclick = () => openSizeModal(s);
+    grid.appendChild(card);
+  });
+}
+function openSizeModal(shape) {
+  document.getElementById('size-modal-shape-name').textContent = shape.name;
+  const grid = document.getElementById('size-grid');
+  grid.innerHTML = '';
+  SIZES.forEach(sz => {
+    const btn = document.createElement('div');
+    btn.className = 'size-btn';
+    btn.textContent = sz;
+    btn.onclick = () => {
+      order.shape = shape.id;
+      order.size = sz;
+      closeModal('size-modal');
+      renderUndiesShapes();
+      goTo('decorate'); // taille choisie => étape suivante
+    };
+    grid.appendChild(btn);
+  });
+  document.getElementById('size-modal').classList.add('open');
+}
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+/* ======================= 4. DÉCORATION ======================= */
+function currentGarmentStyle() {
+  const bg = order.color ? order.color.hex : '#e0729f';
+  const motifCss = order.motif ? order.motif.css : '';
+  return `background-color:${bg};${motifCss ? 'background-image:' + motifCss + ';' : ''}`;
+}
+function renderUndiesShapes() {
+  ['shape-front', 'shape-back'].forEach(id => {
+    document.getElementById(id).style.cssText = `left:50%; top:50%; transform:translate(-50%,-50%); width:130px; height:100px; border-radius:0 0 60px 60px / 0 0 70px 70px; ${currentGarmentStyle()}`;
+  });
+}
+function renderDecorList() {
+  const list = document.getElementById('decor-list');
+  list.innerHTML = '';
+  DECOR_ITEMS.forEach(item => {
+    const el = document.createElement('div');
+    el.className = 'decor-choice';
+    el.innerHTML = `${item.icon}<small>+${item.price.toFixed(2)}€</small>`;
+    el.onclick = () => openDecorColorPicker(item);
+    list.appendChild(el);
+  });
+}
+function openDecorColorPicker(item) {
+  document.getElementById('decor-color-title').textContent = item.name;
+  const grid = document.getElementById('decor-color-grid');
+  grid.innerHTML = '';
+  DECOR_COLORS.forEach(hex => {
+    const sw = document.createElement('div');
+    sw.className = 'color-swatch';
+    sw.style.background = hex;
+    sw.onclick = () => { placeDecorOnGarment(item, hex); closeModal('decor-color-modal'); };
+    grid.appendChild(sw);
+  });
+  document.getElementById('decor-color-modal').classList.add('open');
+}
+function placeDecorOnGarment(item, colorHex) {
+  const target = order.frontDecor.length <= order.backDecor.length ? 'front' : 'back';
+  const list = target === 'front' ? order.frontDecor : order.backDecor;
+  list.push({ ...item, color: colorHex, x: 30 + Math.random() * 40, y: 25 + Math.random() * 50 });
+  renderPlacedDecor();
+}
+function renderPlacedDecor() {
+  ['front', 'back'].forEach(side => {
+    const view = document.getElementById('view-' + side);
+    view.querySelectorAll('.decor-item-placed').forEach(e => e.remove());
+    const list = side === 'front' ? order.frontDecor : order.backDecor;
+    list.forEach(d => {
+      const el = document.createElement('div');
+      el.className = 'decor-item-placed';
+      el.style.left = d.x + '%';
+      el.style.top = d.y + '%';
+      el.textContent = d.icon;
+      view.appendChild(el);
+    });
+  });
+}
+
+/* ======================= 5. BOLS D'EXTRAS ======================= */
+function renderBowls() {
+  const grid = document.getElementById('bowls-grid');
+  grid.innerHTML = '';
+  EXTRAS.forEach(extra => {
+    const card = document.createElement('div');
+    card.className = 'bowl-card';
+    card.innerHTML = `<div class="bowl-icon">${extra.icon}</div><b>${extra.name}</b><small>+${extra.price.toFixed(2)}€${extra.special ? ' (variable)' : ''}</small>`;
+    card.onclick = () => {
+      const already = order.extras.includes(extra.id);
+      card.classList.toggle('active', !already);
+      order.extras = already ? order.extras.filter(id => id !== extra.id) : [...order.extras, extra.id];
+      document.getElementById('special-request-box').classList.toggle('open', order.extras.includes('special'));
+    };
+    grid.appendChild(card);
+  });
+}
+
+/* ======================= TICKET ======================= */
+function playCashSound() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [880, 1320].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.frequency.value = freq;
+      osc.type = 'square';
+      gain.gain.setValueAtTime(0.08, ctx.currentTime + i * 0.08);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.08 + 0.25);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(ctx.currentTime + i * 0.08);
+      osc.stop(ctx.currentTime + i * 0.08 + 0.25);
+    });
+  } catch (e) {}
+}
+function shapeName(id) { const s = SHAPES.find(x => x.id === id); return s ? s.name : 'Création'; }
+
+function mixAndShowReceipt() {
+  order.specialRequest = document.getElementById('special-request-text').value.trim();
+  const lines = [];
+  let total = 0;
+
+  const basePrice = BASE_PRICE[order.shape] || 25;
+  lines.push({ label: `${shapeName(order.shape)} (taille ${order.size || '-'})`, price: basePrice });
+  total += basePrice;
+
+  if (order.motif) { lines.push({ label: `Motif "${order.motif.name}"`, price: 3 }); total += 3; }
+
+  [...order.frontDecor, ...order.backDecor].forEach(d => { lines.push({ label: `${d.icon} ${d.name}`, price: d.price }); total += d.price; });
+
+  order.extras.forEach(id => {
+    const extra = EXTRAS.find(e => e.id === id);
+    if (!extra) return;
+    if (extra.special) {
+      const requestPrice = order.specialRequest ? 8 : 0;
+      lines.push({ label: `📝 Demande spéciale${order.specialRequest ? '' : ' (non précisée)'}`, price: requestPrice });
+      total += requestPrice;
+    } else {
+      lines.push({ label: `${extra.icon} ${extra.name}`, price: extra.price });
+      total += extra.price;
+    }
+  });
+
+  document.getElementById('receipt').innerHTML = `
+    <h2>STRINGZ.EXE</h2>
+    <div class="sub">Commande personnalisée — ${new Date().toLocaleString('fr-FR')}</div>
+    ${lines.map(l => `<div class="receipt-line"><span>${l.label}</span><span>${l.price.toFixed(2)} €</span></div>`).join('')}
+    <div class="receipt-total"><span>TOTAL</span><span>${total.toFixed(2)} €</span></div>
+    ${order.specialRequest ? `<div class="note">Note : "${order.specialRequest}"</div>` : ''}
+    <div class="note">Clique sur le ticket pour continuer 💗</div>
+  `;
+  document.getElementById('receipt-overlay').classList.add('open');
+  playCashSound();
+}
+document.getElementById('receipt').addEventListener('click', () => {
+  document.getElementById('receipt-overlay').classList.remove('open');
+  goTo('oven');
+});
+
+/* ======================= 6. CUISSON ======================= */
+function startBaking() {
+  document.getElementById('oven-result').classList.remove('show');
+  const bar = document.getElementById('bake-progress');
+  bar.style.width = '0%';
+  let pct = 0;
+  const interval = setInterval(() => {
+    pct += 4;
+    bar.style.width = Math.min(pct, 100) + '%';
+    if (pct >= 100) {
+      clearInterval(interval);
+      document.getElementById('oven-title').textContent = 'Ta culotte est prête !';
+      document.getElementById('oven-result').classList.add('show');
+    }
+  }, 120);
+}
+
+/* ======================= INIT ======================= */
+renderPantoneRow();
+renderMotifRow();
+renderShapeGrid();
+renderDecorList();
+renderUndiesShapes();
+renderBowls();
+</script>
+
+</body>
+</html>
