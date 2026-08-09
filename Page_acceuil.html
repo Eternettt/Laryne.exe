@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Stringz.exe</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Segoe UI", Arial, sans-serif;
+    background: url('fond_d_ecran.png') no-repeat center center fixed;
+    background-size: cover;
+    min-height: 100vh;
+  }
+
+  header {
+    background: linear-gradient(#c2477a, #7a2350);
+    padding: 20px 40px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+  }
+
+  header h1 {
+    color: white;
+    margin: 0;
+    font-size: 24px;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+  }
+
+  #menu-btn {
+    background: linear-gradient(#f0f0f0, #c0c0c0);
+    border: 1px solid #888;
+    border-radius: 6px;
+    padding: 10px 22px;
+    font-size: 15px;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  }
+
+  #menu-btn:hover {
+    background: linear-gradient(#ffffff, #d8d8d8);
+  }
+
+  #menu-btn:active {
+    background: linear-gradient(#c0c0c0, #e0e0e0);
+  }
+
+  main {
+    padding: 60px 40px;
+    text-align: center;
+    color: white;
+    text-shadow: 1px 1px 3px rgba(0,0,0,0.4);
+  }
+
+  main p {
+    font-size: 18px;
+    max-width: 600px;
+    margin: 0 auto;
+  }
+
+  /* --- Fenêtres façon Windows 98 (rose) --- */
+  .vista-window {
+    position: fixed;
+    width: 200px;
+    background: #c0c0c0;
+    border-top: 2px solid #ffffff;
+    border-left: 2px solid #ffffff;
+    border-right: 2px solid #3b3b3b;
+    border-bottom: 2px solid #3b3b3b;
+    box-shadow: 1px 1px 0 #000000, 3px 3px 10px rgba(0,0,0,0.5);
+    overflow: hidden;
+    display: none;
+    z-index: 1000;
+    font-family: "MS Sans Serif", Tahoma, Verdana, sans-serif;
+  }
+
+  .vista-window.open {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .vista-titlebar {
+    background: linear-gradient(90deg, #8f0f4f 0%, #d8388c 45%, #ff8cc0 100%);
+    padding: 3px 3px 3px 6px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: grab;
+    user-select: none;
+  }
+
+  .vista-titlebar:active {
+    cursor: grabbing;
+  }
+
+  .vista-window.dragging {
+    box-shadow: 2px 2px 0 #000000, 4px 4px 14px rgba(0,0,0,0.6);
+    opacity: 0.97;
+  }
+
+  .vista-title {
+    font-size: 12px;
+    font-weight: bold;
+    color: #ffffff;
+    letter-spacing: 0.2px;
+  }
+
+  .vista-close {
+    width: 18px;
+    height: 17px;
+    background: #c0c0c0;
+    border-top: 1px solid #ffffff;
+    border-left: 1px solid #ffffff;
+    border-right: 1px solid #3b3b3b;
+    border-bottom: 1px solid #3b3b3b;
+    color: #000000;
+    font-size: 11px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    line-height: 1;
+  }
+
+  .vista-close:active {
+    border-top: 1px solid #3b3b3b;
+    border-left: 1px solid #3b3b3b;
+    border-right: 1px solid #ffffff;
+    border-bottom: 1px solid #ffffff;
+  }
+
+  .vista-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 16px 14px;
+    text-align: center;
+    background: #c0c0c0;
+    color: #000000;
+    font-size: 12px;
+  }
+
+  .vista-body img {
+    max-width: 60px;
+    display: block;
+    margin: 0 auto 12px auto;
+  }
+
+  .vista-link {
+    display: inline-block;
+    background: #c0c0c0;
+    border-top: 2px solid #ffffff;
+    border-left: 2px solid #ffffff;
+    border-right: 2px solid #3b3b3b;
+    border-bottom: 2px solid #3b3b3b;
+    padding: 6px 14px;
+    color: #000000;
+    font-weight: bold;
+    font-size: 12px;
+    text-decoration: none;
+    cursor: pointer;
+  }
+
+  .vista-link:active {
+    border-top: 2px solid #3b3b3b;
+    border-left: 2px solid #3b3b3b;
+    border-right: 2px solid #ffffff;
+    border-bottom: 2px solid #ffffff;
+  }
+
+  /* Positions par défaut (superposées légèrement en cascade) */
+  #popup1 { top: 100px; left: 80px; }
+  #popup2 { top: 140px; left: 350px; }
+  #popup3 { top: 180px; left: 620px; }
+  #popup4 { top: 220px; left: 200px; }
+  #popup5 { top: 260px; left: 480px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Stringz.exe</h1>
+  <button id="menu-btn">☰ Menu</button>
+</header>
+
+<main>
+  <p>Bienvenue sur la page d'accueil. Cliquez sur "Menu" pour découvrir nos rubriques.</p>
+</main>
+
+<!-- Les 5 popups façon Windows XP -->
+<div class="vista-window" id="popup1">
+  <div class="vista-titlebar">
+    <span class="vista-title">Connexion</span>
+    <div class="vista-close" data-target="popup1">✕</div>
+  </div>
+  <div class="vista-body">
+    <img src="" alt="icone1">
+    <a href="connexion.html" class="vista-link">Me connecter</a>
+  </div>
+</div>
+
+<div class="vista-window" id="popup2">
+  <div class="vista-titlebar">
+    <span class="vista-title">Boutique</span>
+    <div class="vista-close" data-target="popup2">✕</div>
+  </div>
+  <div class="vista-body">
+    <img src="" alt="icone2">
+    <a href="boutique.html" class="vista-link">Accéder à Boutique</a>
+  </div>
+</div>
+
+<div class="vista-window" id="popup3">
+  <div class="vista-titlebar">
+    <span class="vista-title">Contact</span>
+    <div class="vista-close" data-target="popup3">✕</div>
+  </div>
+  <div class="vista-body">
+    <img src="" alt="icone3">
+    <a href="contact.html" class="vista-link">Accéder à Contact</a>
+  </div>
+</div>
+
+<div class="vista-window" id="popup4">
+  <div class="vista-titlebar">
+    <span class="vista-title">commande perso</span>
+    <div class="vista-close" data-target="popup4">✕</div>
+  </div>
+  <div class="vista-body">
+    <img src="" alt="icone4">
+    <a href="commande_perso.html" class="vista-link">Accéder au commande perso</a>
+  </div>
+</div>
+
+<div class="vista-window" id="popup5">
+  <div class="vista-titlebar">
+    <span class="vista-title">Showroom privé</span>
+    <div class="vista-close" data-target="popup5">✕</div>
+  </div>
+  <div class="vista-body">
+    <img src="" alt="icone5">
+    <a href="showroom_prive.html" class="vista-link">Accéder au Showroom privé</a>
+  </div>
+</div>
+
+<script>
+  const popups = document.querySelectorAll('.vista-window');
+  const menuBtn = document.getElementById('menu-btn');
+  const headerEl = document.querySelector('header');
+  let spawnTimeouts = [];
+
+  // Zone interdite en haut de l'écran (bande du header : nom du site + bouton Menu)
+  function getTopLimit() {
+    return headerEl.getBoundingClientRect().bottom;
+  }
+
+  function playPopupSound() {
+    const sound = new Audio('popup-sound.mp3');
+    sound.play().catch(() => {}); // ignore si le navigateur bloque l'autoplay avant interaction
+  }
+
+  function anyOpen() {
+    return Array.from(popups).some(p => p.classList.contains('open'));
+  }
+
+  function spawnPopup(win, width, height, finalLeft, finalTop) {
+    const btnRect = menuBtn.getBoundingClientRect();
+
+    win.style.width = width + 'px';
+    win.style.height = height + 'px';
+
+    // état de départ : au niveau du bouton Menu, minuscule et invisible
+    win.style.transition = 'none';
+    win.classList.add('open');
+    win.style.opacity = '0';
+    win.style.transform = 'scale(0.15)';
+    win.style.left = (btnRect.left + btnRect.width / 2 - width / 2) + 'px';
+    win.style.top = (btnRect.top + btnRect.height / 2 - height / 2) + 'px';
+
+    // force le navigateur à appliquer l'état de départ avant d'animer
+    void win.offsetWidth;
+
+    requestAnimationFrame(() => {
+      win.style.transition = 'left 0.45s cubic-bezier(.2,.8,.3,1), top 0.45s cubic-bezier(.2,.8,.3,1), transform 0.45s cubic-bezier(.2,.8,.3,1), opacity 0.3s ease';
+      win.style.left = finalLeft + 'px';
+      win.style.top = finalTop + 'px';
+      win.style.transform = 'scale(1)';
+      win.style.opacity = '1';
+    });
+
+    bringToFront(win);
+  }
+
+  // Calcule une aire de recouvrement entre deux rectangles
+  function overlapArea(a, b) {
+    const xOverlap = Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left));
+    const yOverlap = Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+    return xOverlap * yOverlap;
+  }
+
+  // Précalcule tailles + positions de toutes les popups en limitant le chevauchement
+  function computeLayout() {
+    const placedRects = [];
+
+    return Array.from(popups).map(win => {
+      const topLimit = getTopLimit();
+      const availableHeight = Math.max(100, window.innerHeight - topLimit);
+      const availableWidth = window.innerWidth;
+
+      // Surface cible occupée par la popup (même plage globale qu'avant),
+      // puis on choisit un ratio largeur/hauteur au hasard, indépendant de
+      // la forme de l'écran, pour obtenir des fenêtres tantôt verticales,
+      // tantôt carrées, tantôt horizontales.
+      const areaFraction = 0.12 + Math.random() * 0.08; // ~12%-20% de la zone dispo (popups plus petits)
+      const targetArea = availableWidth * availableHeight * areaFraction;
+      const aspect = 0.5 + Math.random() * 1.7; // 0.5 = plutôt vertical, 2.2 = plutôt horizontal
+
+      let width = Math.round(Math.sqrt(targetArea * aspect));
+      let height = Math.round(Math.sqrt(targetArea / aspect));
+
+      width = Math.min(Math.max(170, width), availableWidth);
+      height = Math.min(Math.max(130, height), availableHeight);
+
+      const maxLeft = Math.max(0, window.innerWidth - width);
+      const maxTop = Math.max(topLimit, window.innerHeight - height);
+
+      // On teste plusieurs positions candidates et on garde celle qui
+      // chevauche le moins les popups déjà placées
+      let bestLeft = Math.random() * maxLeft;
+      let bestTop = topLimit + Math.random() * (maxTop - topLimit);
+      let bestOverlap = Infinity;
+
+      for (let attempt = 0; attempt < 40; attempt++) {
+        const left = Math.random() * maxLeft;
+        const top = topLimit + Math.random() * (maxTop - topLimit);
+        const rect = { left, top, right: left + width, bottom: top + height };
+
+        let overlap = 0;
+        for (const placed of placedRects) {
+          overlap += overlapArea(rect, placed);
+        }
+
+        if (overlap < bestOverlap) {
+          bestOverlap = overlap;
+          bestLeft = left;
+          bestTop = top;
+        }
+        if (overlap === 0) break; // position sans aucun chevauchement trouvée
+      }
+
+      placedRects.push({ left: bestLeft, top: bestTop, right: bestLeft + width, bottom: bestTop + height });
+
+      return { win, width, height, left: bestLeft, top: bestTop };
+    });
+  }
+
+  function openAll() {
+    spawnTimeouts.forEach(id => clearTimeout(id));
+    spawnTimeouts = [];
+
+    const layout = computeLayout();
+
+    layout.forEach((item, i) => {
+      const id = setTimeout(() => {
+        spawnPopup(item.win, item.width, item.height, item.left, item.top);
+        playPopupSound();
+      }, i * 220); // apparition échelonnée (pas toutes en même temps)
+      spawnTimeouts.push(id);
+    });
+  }
+
+  function closeAll() {
+    // Annule toutes les apparitions encore programmées (pas encore sorties)
+    spawnTimeouts.forEach(id => clearTimeout(id));
+    spawnTimeouts = [];
+    popups.forEach(p => p.classList.remove('open'));
+  }
+
+  menuBtn.addEventListener('click', () => {
+    if (anyOpen()) {
+      closeAll();
+    } else {
+      openAll();
+    }
+  });
+
+  document.querySelectorAll('.vista-close').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const targetId = btn.getAttribute('data-target');
+      document.getElementById(targetId).classList.remove('open');
+    });
+  });
+
+  // --- Déplacement des popups (drag & drop) + gestion du premier plan ---
+  let topZ = 1000;
+
+  function bringToFront(win) {
+    topZ++;
+    win.style.zIndex = topZ;
+  }
+
+  popups.forEach(win => {
+    const titlebar = win.querySelector('.vista-titlebar');
+    let offsetX = 0, offsetY = 0, dragging = false;
+
+    // Clic n'importe où sur la fenêtre => passe au premier plan
+    win.addEventListener('mousedown', () => bringToFront(win));
+
+    titlebar.addEventListener('mousedown', (e) => {
+      // Ne pas démarrer le drag si on clique sur la croix
+      if (e.target.classList.contains('vista-close')) return;
+
+      dragging = true;
+      win.classList.add('dragging');
+      win.style.transition = 'none';
+      bringToFront(win);
+
+      const rect = win.getBoundingClientRect();
+      offsetX = e.clientX - rect.left;
+      offsetY = e.clientY - rect.top;
+
+      e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!dragging) return;
+
+      let newLeft = e.clientX - offsetX;
+      let newTop = e.clientY - offsetY;
+
+      // Empêche totalement la fenêtre de sortir de l'écran (et de passer sous le header)
+      const topLimit = getTopLimit();
+      const maxLeft = window.innerWidth - win.offsetWidth;
+      const maxTop = window.innerHeight - win.offsetHeight;
+
+      newLeft = Math.max(0, Math.min(newLeft, Math.max(0, maxLeft)));
+      newTop = Math.max(topLimit, Math.min(newTop, Math.max(topLimit, maxTop)));
+
+      win.style.left = newLeft + 'px';
+      win.style.top = newTop + 'px';
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (dragging) {
+        dragging = false;
+        win.classList.remove('dragging');
+      }
+    });
+  });
+
+  // --- Réajuste toutes les popups pour qu'elles restent visibles si la fenêtre rétrécit ---
+  function clampToViewport(win) {
+    const rect = win.getBoundingClientRect();
+    const topLimit = getTopLimit();
+    let left = rect.left;
+    let top = rect.top;
+
+    const maxLeft = window.innerWidth - rect.width;
+    const maxTop = window.innerHeight - rect.height;
+
+    left = Math.max(0, Math.min(left, Math.max(0, maxLeft)));
+    top = Math.max(topLimit, Math.min(top, Math.max(topLimit, maxTop)));
+
+    win.style.left = left + 'px';
+    win.style.top = top + 'px';
+  }
+
+  function clampAllPopups() {
+    popups.forEach(win => clampToViewport(win));
+  }
+
+  window.addEventListener('resize', clampAllPopups);
+</script>
+
+</body>
+</html>

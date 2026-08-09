@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Showroom privé - Stringz.exe</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    background: #ffffff;
+    overflow: hidden;
+    cursor: crosshair;
+  }
+
+  #scene {
+    position: relative;
+    width: 100%;
+    height: 100vh;
+  }
+
+  .shadow {
+    position: absolute;
+    width: 24px;
+    height: 7px;
+    background: rgba(0,0,0,0.18);
+    border-radius: 50%;
+    filter: blur(1px);
+    transition: opacity 0.2s ease;
+  }
+
+  .character {
+    position: absolute;
+    width: 26px;
+    height: 34px;
+    transform-origin: center bottom;
+  }
+
+  .character.facing-left { transform: scaleX(-1); }
+
+  .part { position: absolute; }
+
+  .cap {
+    width: 22px; height: 9px;
+    background: #e3350d;
+    border-radius: 11px 11px 2px 2px;
+    top: 0; left: 2px;
+    box-shadow: inset 0 -2px 0 rgba(0,0,0,0.15);
+  }
+  .cap-brim {
+    width: 16px; height: 3px;
+    background: #c41c1c;
+    top: 6px; left: 5px;
+    border-radius: 2px;
+  }
+  .face {
+    width: 14px; height: 9px;
+    background: #ffd7a8;
+    top: 8px; left: 6px;
+    border-radius: 0 0 7px 7px;
+  }
+  .eye {
+    width: 2px; height: 2px;
+    background: #222;
+    top: 11px;
+    border-radius: 50%;
+  }
+  .eye.l { left: 8px; }
+  .eye.r { left: 14px; }
+
+  .body {
+    width: 18px; height: 11px;
+    background: #e3350d;
+    top: 16px; left: 4px;
+    border-radius: 4px 4px 3px 3px;
+  }
+
+  .arm {
+    width: 4px; height: 8px;
+    background: #e3350d;
+    top: 17px;
+    border-radius: 2px;
+    transform-origin: top center;
+  }
+  .arm.l { left: 0px; }
+  .arm.r { left: 22px; }
+
+  .hand {
+    width: 4px; height: 4px;
+    background: #ffd7a8;
+    top: 23px;
+    border-radius: 50%;
+  }
+  .hand.l { left: 0px; }
+  .hand.r { left: 22px; }
+
+  .leg {
+    width: 6px; height: 9px;
+    background: #2b4c8c;
+    top: 26px;
+    border-radius: 0 0 2px 2px;
+    transform-origin: top center;
+  }
+  .leg.l { left: 5px; }
+  .leg.r { left: 15px; }
+
+  .shoe {
+    width: 7px; height: 4px;
+    background: #2b2b2b;
+    top: 31px;
+    border-radius: 2px;
+    transform-origin: top center;
+  }
+  .shoe.l { left: 4px; }
+  .shoe.r { left: 15px; }
+
+  /* --- Animation de marche --- */
+  .character.walking .leg.l,
+  .character.walking .shoe.l,
+  .character.walking .arm.r {
+    animation: swingL 0.4s infinite ease-in-out;
+  }
+  .character.walking .leg.r,
+  .character.walking .shoe.r,
+  .character.walking .arm.l {
+    animation: swingR 0.4s infinite ease-in-out;
+  }
+  .character.walking { animation: bob 0.4s infinite ease-in-out; }
+
+  @keyframes swingL {
+    0%, 100% { transform: rotate(-18deg); }
+    50% { transform: rotate(18deg); }
+  }
+  @keyframes swingR {
+    0%, 100% { transform: rotate(18deg); }
+    50% { transform: rotate(-18deg); }
+  }
+  @keyframes bob {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-2px); }
+  }
+
+  /* --- Animation d'attente (respiration) --- */
+  .character.idle { animation: breathe 1.6s infinite ease-in-out; }
+  @keyframes breathe {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-1px); }
+  }
+
+  /* --- Obstacle (carré bleu) --- */
+  #obstacle {
+    position: absolute;
+    background: #2b6fe0;
+    border: 3px solid #1a4fb0;
+    border-radius: 6px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+  }
+
+  /* --- Bouton Quitter --- */
+  #quit-btn {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 100;
+    padding: 8px 16px;
+    background: linear-gradient(#c2477a, #7a2350);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-family: "Segoe UI", Arial, sans-serif;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+  }
+  #quit-btn:hover {
+    background: linear-gradient(#d1588c, #8a2a5c);
+  }
+  #quit-btn:active {
+    background: linear-gradient(#7a2350, #c2477a);
+  }
+</style>
+</head>
+<body>
+
+<button id="quit-btn" onclick="window.location.href='Page_acceuil.html'">✕ Quitter</button>
+
+<div id="scene">
+  <div id="obstacle"></div>
+  <div class="shadow" id="shadow"></div>
+  <div class="character idle" id="character">
+    <div class="part cap"></div>
+    <div class="part cap-brim"></div>
+    <div class="part face"></div>
+    <div class="part eye l"></div>
+    <div class="part eye r"></div>
+    <div class="part arm l"></div>
+    <div class="part arm r"></div>
+    <div class="part hand l"></div>
+    <div class="part hand r"></div>
+    <div class="part body"></div>
+    <div class="part leg l"></div>
+    <div class="part leg r"></div>
+    <div class="part shoe l"></div>
+    <div class="part shoe r"></div>
+  </div>
+</div>
+
+<script>
+  const scene = document.getElementById('scene');
+  const character = document.getElementById('character');
+  const shadow = document.getElementById('shadow');
+  const obstacleEl = document.getElementById('obstacle');
+
+  // Le personnage démarre à l'écart de l'obstacle central
+  let pos = { x: window.innerWidth * 0.2, y: window.innerHeight * 0.75 };
+  let waypoints = [];      // suite de points à atteindre (chemin calculé)
+  let waypointIndex = 0;
+  const speed = 160;       // pixels par seconde
+  let lastTime = null;
+  let moving = false;
+
+  const CELL = 16;         // taille des cases de la grille de pathfinding
+  const CHAR_PAD = 14;     // marge de collision autour du perso
+
+  // ---- Obstacle ----
+  function getObstacleRect() {
+    const size = 140;
+    return {
+      x: window.innerWidth / 2 - size / 2,
+      y: window.innerHeight / 2 - size / 2,
+      w: size,
+      h: size
+    };
+  }
+  function inflatedObstacle() {
+    const r = getObstacleRect();
+    return { x: r.x - CHAR_PAD, y: r.y - CHAR_PAD, w: r.w + CHAR_PAD * 2, h: r.h + CHAR_PAD * 2 };
+  }
+  function renderObstacle() {
+    const r = getObstacleRect();
+    obstacleEl.style.left = r.x + 'px';
+    obstacleEl.style.top = r.y + 'px';
+    obstacleEl.style.width = r.w + 'px';
+    obstacleEl.style.height = r.h + 'px';
+  }
+  renderObstacle();
+
+  // ---- Petit tas binaire (min-heap) pour l'A* ----
+  class MinHeap {
+    constructor() { this.data = []; }
+    isEmpty() { return this.data.length === 0; }
+    push(item) {
+      this.data.push(item);
+      let i = this.data.length - 1;
+      while (i > 0) {
+        const p = (i - 1) >> 1;
+        if (this.data[p].f <= this.data[i].f) break;
+        [this.data[p], this.data[i]] = [this.data[i], this.data[p]];
+        i = p;
+      }
+    }
+    pop() {
+      const top = this.data[0];
+      const last = this.data.pop();
+      if (this.data.length > 0) {
+        this.data[0] = last;
+        let i = 0;
+        const n = this.data.length;
+        while (true) {
+          let l = 2 * i + 1, r = 2 * i + 2, smallest = i;
+          if (l < n && this.data[l].f < this.data[smallest].f) smallest = l;
+          if (r < n && this.data[r].f < this.data[smallest].f) smallest = r;
+          if (smallest === i) break;
+          [this.data[smallest], this.data[i]] = [this.data[i], this.data[smallest]];
+          i = smallest;
+        }
+      }
+      return top;
+    }
+  }
+
+  function rectContainsPoint(rect, x, y) {
+    return x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h;
+  }
+
+  function segmentIntersectsRect(x1, y1, x2, y2, rect) {
+    const steps = Math.max(1, Math.ceil(Math.hypot(x2 - x1, y2 - y1) / 4));
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      if (rectContainsPoint(rect, x1 + (x2 - x1) * t, y1 + (y2 - y1) * t)) return true;
+    }
+    return false;
+  }
+
+  function findNearestFree(cell, blockedFn, cols, rows) {
+    const visited = new Set([cell.c + ',' + cell.r]);
+    const queue = [cell];
+    while (queue.length) {
+      const cur = queue.shift();
+      if (!blockedFn(cur.c, cur.r)) return cur;
+      const neighbors = [
+        { c: cur.c + 1, r: cur.r }, { c: cur.c - 1, r: cur.r },
+        { c: cur.c, r: cur.r + 1 }, { c: cur.c, r: cur.r - 1 }
+      ];
+      for (const n of neighbors) {
+        if (n.c < 0 || n.r < 0 || n.c >= cols || n.r >= rows) continue;
+        const k = n.c + ',' + n.r;
+        if (!visited.has(k)) { visited.add(k); queue.push(n); }
+      }
+    }
+    return cell;
+  }
+
+  // ---- A* : trouve le chemin le plus court qui évite l'obstacle ----
+  function findPath(start, goal) {
+    const obstacle = inflatedObstacle();
+    const cols = Math.ceil(window.innerWidth / CELL);
+    const rows = Math.ceil(window.innerHeight / CELL);
+
+    function cellBlocked(c, r) {
+      if (c < 0 || r < 0 || c >= cols || r >= rows) return true;
+      const cx = c * CELL, cy = r * CELL;
+      return !(cx + CELL < obstacle.x || cx > obstacle.x + obstacle.w ||
+               cy + CELL < obstacle.y || cy > obstacle.y + obstacle.h);
+    }
+
+    let startCell = { c: Math.floor(start.x / CELL), r: Math.floor(start.y / CELL) };
+    let goalCell = { c: Math.floor(goal.x / CELL), r: Math.floor(goal.y / CELL) };
+
+    if (cellBlocked(goalCell.c, goalCell.r)) goalCell = findNearestFree(goalCell, cellBlocked, cols, rows);
+    if (cellBlocked(startCell.c, startCell.r)) startCell = findNearestFree(startCell, cellBlocked, cols, rows);
+
+    const key = (c, r) => c + ',' + r;
+    const heuristic = (a, b) => Math.hypot(a.c - b.c, a.r - b.r);
+
+    const open = new MinHeap();
+    const gScore = new Map();
+    const cameFrom = new Map();
+    gScore.set(key(startCell.c, startCell.r), 0);
+    open.push({ c: startCell.c, r: startCell.r, f: heuristic(startCell, goalCell) });
+
+    const dirs = [
+      { dc: 1, dr: 0, cost: 1 }, { dc: -1, dr: 0, cost: 1 },
+      { dc: 0, dr: 1, cost: 1 }, { dc: 0, dr: -1, cost: 1 },
+      { dc: 1, dr: 1, cost: Math.SQRT2 }, { dc: 1, dr: -1, cost: Math.SQRT2 },
+      { dc: -1, dr: 1, cost: Math.SQRT2 }, { dc: -1, dr: -1, cost: Math.SQRT2 }
+    ];
+
+    const closed = new Set();
+    let found = false;
+    let iterations = 0;
+    const maxIter = cols * rows;
+
+    while (!open.isEmpty() && iterations < maxIter) {
+      iterations++;
+      const current = open.pop();
+      const ck = key(current.c, current.r);
+      if (closed.has(ck)) continue;
+      closed.add(ck);
+
+      if (current.c === goalCell.c && current.r === goalCell.r) { found = true; break; }
+
+      for (const d of dirs) {
+        const nc = current.c + d.dc, nr = current.r + d.dr;
+        if (cellBlocked(nc, nr)) continue;
+        // empêche de "couper les coins" en diagonale à travers deux cases bloquées
+        if (d.dc !== 0 && d.dr !== 0) {
+          if (cellBlocked(current.c + d.dc, current.r) || cellBlocked(current.c, current.r + d.dr)) continue;
+        }
+        const nk = key(nc, nr);
+        if (closed.has(nk)) continue;
+        const tentativeG = gScore.get(ck) + d.cost;
+        if (tentativeG < (gScore.has(nk) ? gScore.get(nk) : Infinity)) {
+          gScore.set(nk, tentativeG);
+          cameFrom.set(nk, ck);
+          open.push({ c: nc, r: nr, f: tentativeG + heuristic({ c: nc, r: nr }, goalCell) });
+        }
+      }
+    }
+
+    if (!found) return null;
+
+    const path = [];
+    let curKey = key(goalCell.c, goalCell.r);
+    const startKey = key(startCell.c, startCell.r);
+    while (curKey !== startKey) {
+      const [c, r] = curKey.split(',').map(Number);
+      path.push({ c, r });
+      const prev = cameFrom.get(curKey);
+      if (!prev) break;
+      curKey = prev;
+    }
+    path.push({ c: startCell.c, r: startCell.r });
+    path.reverse();
+
+    return path.map(p => ({ x: p.c * CELL + CELL / 2, y: p.r * CELL + CELL / 2 }));
+  }
+
+  // ---- Simplifie le chemin en segments droits (le perso ne suit pas chaque case) ----
+  function smoothPath(path) {
+    if (path.length <= 2) return path;
+    const obstacle = inflatedObstacle();
+    const result = [path[0]];
+    let anchor = 0;
+    while (anchor < path.length - 1) {
+      let farthest = anchor + 1;
+      for (let j = anchor + 1; j < path.length; j++) {
+        if (!segmentIntersectsRect(path[anchor].x, path[anchor].y, path[j].x, path[j].y, obstacle)) {
+          farthest = j;
+        } else {
+          break;
+        }
+      }
+      result.push(path[farthest]);
+      anchor = farthest;
+    }
+    return result;
+  }
+
+  function render() {
+    character.style.left = (pos.x - 13) + 'px';
+    character.style.top = (pos.y - 34) + 'px';
+    shadow.style.left = (pos.x - 12) + 'px';
+    shadow.style.top = (pos.y - 6) + 'px';
+  }
+  render();
+
+  scene.addEventListener('click', (e) => {
+    const rawPath = findPath(pos, { x: e.clientX, y: e.clientY });
+    if (rawPath) {
+      waypoints = smoothPath(rawPath);
+      waypointIndex = (waypoints.length > 1 && Math.hypot(waypoints[0].x - pos.x, waypoints[0].y - pos.y) < 4) ? 1 : 0;
+    } else {
+      // filet de sécurité si aucun chemin trouvé
+      waypoints = [{ x: e.clientX, y: e.clientY }];
+      waypointIndex = 0;
+    }
+  });
+
+  function frame(t) {
+    if (lastTime === null) lastTime = t;
+    const dt = Math.min((t - lastTime) / 1000, 0.05);
+    lastTime = t;
+
+    if (waypointIndex < waypoints.length) {
+      const wp = waypoints[waypointIndex];
+      const dx = wp.x - pos.x;
+      const dy = wp.y - pos.y;
+      const dist = Math.hypot(dx, dy);
+
+      if (dist > 2) {
+        const step = Math.min(speed * dt, dist);
+        pos.x += (dx / dist) * step;
+        pos.y += (dy / dist) * step;
+
+        if (!moving) {
+          moving = true;
+          character.classList.remove('idle');
+          character.classList.add('walking');
+        }
+        if (dx < -1) character.classList.add('facing-left');
+        else if (dx > 1) character.classList.remove('facing-left');
+      } else {
+        waypointIndex++;
+        if (waypointIndex >= waypoints.length && moving) {
+          moving = false;
+          character.classList.remove('walking');
+          character.classList.add('idle');
+        }
+      }
+    } else if (moving) {
+      moving = false;
+      character.classList.remove('walking');
+      character.classList.add('idle');
+    }
+
+    render();
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  window.addEventListener('resize', () => {
+    renderObstacle();
+    pos.x = Math.min(pos.x, window.innerWidth - 20);
+    pos.y = Math.min(pos.y, window.innerHeight - 20);
+    waypoints = [];
+    waypointIndex = 0;
+  });
+</script>
+
+</body>
+</html>

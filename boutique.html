@@ -1,0 +1,1738 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stringz.exe</title>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: Arial, Helvetica, sans-serif;
+    background: url('fond_d_ecran.png') no-repeat center center fixed;
+    background-size: cover;
+    color: #7a2350;
+  }
+
+  header {
+    background: linear-gradient(#c2477a, #7a2350);
+    border-bottom: 1px solid #5a1a38;
+    padding: 12px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+  }
+  header h1 {
+    font-size: 20px;
+    color: #fff;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+    cursor: pointer;
+  }
+  header h1:hover {
+    text-decoration: underline;
+  }
+  #cart-btn {
+    padding: 8px 14px;
+    background: linear-gradient(#f0f0f0, #c0c0c0);
+    color: #7a2350;
+    border: 1px solid #888;
+    cursor: pointer;
+    font-size: 14px;
+    border-radius: 6px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  }
+  #cart-btn:hover {
+    background: linear-gradient(#ffffff, #d8d8d8);
+  }
+  #cart-btn span { font-weight: bold; }
+
+  #header-admin-btn {
+    padding: 8px 14px;
+    background: linear-gradient(#f0f0f0, #c0c0c0);
+    color: #7a2350;
+    border: 1px solid #888;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: bold;
+    border-radius: 6px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  }
+  #header-admin-btn:hover {
+    background: linear-gradient(#ffffff, #d8d8d8);
+  }
+
+  .toolbar {
+    display: flex;
+    gap: 10px;
+    padding: 12px 20px;
+    background: #fdeaf2;
+    border-bottom: 1px solid #f6c3dc;
+    flex-wrap: wrap;
+  }
+  .toolbar input, .toolbar select {
+    padding: 6px 8px;
+    border: 1px solid #ea8fb8;
+    border-radius: 4px;
+    font-size: 14px;
+    background: #fff;
+    color: #7a2350;
+  }
+  .toolbar input[type="text"] { flex: 1; min-width: 150px; }
+
+  main { padding: 20px; max-width: 1100px; margin: 0 auto; }
+
+  /* --- Grille produits (fond neutre, plus de tableau en liège) --- */
+  #product-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: 34px 28px;
+    padding: 30px 10px 44px 10px;
+  }
+
+  /* --- Articles façon post-it (coin corné, comme un vrai bloc-notes) --- */
+  .product-card {
+    position: relative;
+    background: #f9c2b0;
+    border: none;
+    padding: 1.125em 1em 1.875em 1em;
+    display: flex;
+    flex-direction: column;
+    font-family: 'Caveat', cursive;
+    font-size: 16px;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, width 0.2s ease, height 0.2s ease;
+    box-shadow: 4px 8px 16px rgba(0,0,0,0.28);
+  }
+
+  /* bande légèrement plus foncée en haut, comme la partie collée du bloc-notes */
+  .product-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 15%;
+    background: rgba(0,0,0,0.12);
+    pointer-events: none;
+  }
+
+  .product-card:nth-child(6n+1) { background: #f9c2b0; transform: rotate(-1.5deg); }
+  .product-card:nth-child(6n+2) { background: #ffd6c2; transform: rotate(1deg); }
+  .product-card:nth-child(6n+3) { background: #ffe0a3; transform: rotate(-1deg); }
+  .product-card:nth-child(6n+4) { background: #c9f2d1; transform: rotate(1.5deg); }
+  .product-card:nth-child(6n+5) { background: #bfe1ff; transform: rotate(-1.2deg); }
+  .product-card:nth-child(6n+6) { background: #ffc9d9; transform: rotate(1.2deg); }
+
+  .product-card:hover {
+    transform: rotate(0deg) scale(1.05) !important;
+    box-shadow: 6px 14px 22px rgba(0,0,0,0.35);
+    z-index: 5;
+  }
+
+  /* --- Post-it retiré : glisse et disparaît quand il ne correspond plus au filtre --- */
+  .product-card.falling {
+    transition: transform 0.7s cubic-bezier(.55,0,1,.45), opacity 0.5s ease 0.25s;
+    transform: translate(var(--fall-x, 0px), 640px) rotate(var(--fall-rot, 45deg)) !important;
+    opacity: 0;
+  }
+
+  .postit-content img {
+    width: 100%;
+    height: 7.5em;
+    object-fit: cover;
+    background: #fff;
+    border: 0.25em solid #fff;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.35);
+    margin-bottom: 0.625em;
+  }
+  .product-card h3 { font-size: 1.375em; font-weight: 700; margin-bottom: 2px; color: #2b2b2b; }
+  .product-card .cat { font-size: 0.875em; color: #5a4632; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .product-card .price { font-size: 1.25em; font-weight: 700; margin-bottom: 6px; color: #1a1a1a; }
+  .product-card .stock { font-size: 0.875em; margin-bottom: 10px; font-weight: 600; }
+  .stock.ok { color: #0a7d2c; }
+  .stock.low { color: #a8690a; }
+  .stock.out { color: #c0392b; }
+
+  .product-card button {
+    margin-top: auto;
+    padding: 0.5em;
+    background: linear-gradient(#c2477a, #7a2350);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.8125em;
+    font-family: Arial, Helvetica, sans-serif;
+    font-weight: bold;
+  }
+  .product-card button:hover:not(:disabled) {
+    background: linear-gradient(#d1588c, #8a2a5c);
+  }
+  .product-card button:disabled {
+    background: #aaa;
+    cursor: not-allowed;
+  }
+
+  /* Panel panier */
+  #cart-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 20;
+  }
+  #cart-overlay.open { display: block; }
+
+  #cart-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 340px;
+    max-width: 100%;
+    height: 100%;
+    background: #fdf3f7;
+    box-shadow: -2px 0 8px rgba(0,0,0,0.3);
+    display: flex;
+    flex-direction: column;
+    transform: translateX(100%);
+    transition: transform 0.2s ease;
+    z-index: 21;
+  }
+  #cart-panel.open { transform: translateX(0); }
+
+  #cart-header {
+    padding: 16px;
+    background: linear-gradient(#fdeaf2 0%, #f6c3dc 100%);
+    border-bottom: 1px solid #ea8fb8;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  #cart-header h2 { color: #7a2350; }
+  #close-cart { background: none; border: none; font-size: 20px; cursor: pointer; color: #7a2350; }
+
+  #cart-items { flex: 1; overflow-y: auto; padding: 10px 16px; }
+  .cart-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid #fbdcec;
+    gap: 8px;
+  }
+  .cart-item .name { flex: 1; font-size: 14px; color: #7a2350; }
+  .cart-item .qty-controls { display: flex; align-items: center; gap: 6px; }
+  .cart-item .qty-controls button {
+    width: 24px; height: 24px;
+    border: 1px solid #ea8fb8;
+    background: #fff;
+    cursor: pointer;
+    border-radius: 3px;
+    color: #7a2350;
+  }
+  .cart-item .remove {
+    background: none;
+    border: none;
+    color: #c0392b;
+    cursor: pointer;
+    font-size: 12px;
+  }
+
+  #cart-footer {
+    padding: 16px;
+    border-top: 1px solid #ea8fb8;
+    background: #fdeaf2;
+  }
+  #cart-total {
+    display: flex;
+    justify-content: space-between;
+    font-weight: bold;
+    margin-bottom: 12px;
+    font-size: 16px;
+    color: #7a2350;
+  }
+  #checkout-btn {
+    width: 100%;
+    padding: 12px;
+    background: linear-gradient(#0a9d3c, #076b28);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 15px;
+    cursor: pointer;
+  }
+  #checkout-btn:hover:not(:disabled) {
+    background: linear-gradient(#0cb648, #0a7d2c);
+  }
+  #checkout-btn:disabled { background: #aaa; cursor: not-allowed; }
+
+  .empty-msg { text-align: center; color: #e0729f; padding: 30px 10px; font-size: 14px; }
+
+  #toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(#c2477a, #7a2350);
+    color: #fff;
+    padding: 10px 18px;
+    border-radius: 6px;
+    font-size: 14px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+    z-index: 30;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+  }
+  #toast.show { opacity: 1; }
+
+  /* ==== Fenêtres de détail produit (façon Windows XP, positions ordonnées) ==== */
+  #product-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.35);
+    z-index: 40;
+  }
+  #product-overlay.open { display: block; }
+
+  .pwin {
+    position: fixed;
+    width: 270px;
+    background: #c0c0c0;
+    border-top: 2px solid #ffffff;
+    border-left: 2px solid #ffffff;
+    border-right: 2px solid #3b3b3b;
+    border-bottom: 2px solid #3b3b3b;
+    box-shadow: 1px 1px 0 #000000, 3px 3px 10px rgba(0,0,0,0.5);
+    z-index: 41;
+    font-family: "MS Sans Serif", Tahoma, Verdana, sans-serif;
+    display: none;
+    opacity: 0;
+    transform: scale(0.85);
+    transition: opacity 0.25s ease, transform 0.25s ease;
+  }
+  .pwin.open { display: block; }
+  .pwin.show { opacity: 1; transform: scale(1); }
+
+  .pwin-titlebar {
+    background: linear-gradient(90deg, #8f0f4f 0%, #d8388c 45%, #ff8cc0 100%);
+    padding: 3px 3px 3px 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: grab;
+    user-select: none;
+  }
+  .pwin-titlebar:active { cursor: grabbing; }
+  .pwin-title { font-size: 12px; font-weight: bold; color: #ffffff; }
+  .pwin-close {
+    width: 18px; height: 17px;
+    background: #c0c0c0;
+    border-top: 1px solid #ffffff; border-left: 1px solid #ffffff;
+    border-right: 1px solid #3b3b3b; border-bottom: 1px solid #3b3b3b;
+    color: #000000; font-size: 11px; font-weight: bold;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; line-height: 1;
+  }
+  .pwin-close:active {
+    border-top: 1px solid #3b3b3b; border-left: 1px solid #3b3b3b;
+    border-right: 1px solid #ffffff; border-bottom: 1px solid #ffffff;
+  }
+  .pwin-body { padding: 14px; background: #c0c0c0; color: #000000; font-size: 12px; }
+
+  /* Photos */
+  #pwin-photos .pwin-body { text-align: center; }
+  #pwin-photos img {
+    width: 100%; height: 160px; object-fit: contain;
+    border: 3px solid #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.35);
+    margin-bottom: 8px; background: #fff;
+  }
+  .photo-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; gap: 8px; }
+  .photo-nav button {
+    flex: 1;
+    background: #c0c0c0;
+    border-top: 2px solid #ffffff; border-left: 2px solid #ffffff;
+    border-right: 2px solid #3b3b3b; border-bottom: 2px solid #3b3b3b;
+    padding: 4px 6px; cursor: pointer; font-weight: bold; font-size: 12px;
+  }
+  .photo-nav button:active {
+    border-top: 2px solid #3b3b3b; border-left: 2px solid #3b3b3b;
+    border-right: 2px solid #ffffff; border-bottom: 2px solid #ffffff;
+  }
+  .photo-dots { display: flex; justify-content: center; gap: 5px; }
+  .photo-dots span {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: #888; display: inline-block;
+  }
+  .photo-dots span.active { background: #7a2350; }
+
+  .photo-edit-row { display: flex; gap: 8px; margin-top: 10px; }
+  .photo-edit-btn {
+    flex: 1;
+    display: block;
+    text-align: center;
+    padding: 6px 8px;
+    background: #c0c0c0;
+    border-top: 2px solid #ffffff; border-left: 2px solid #ffffff;
+    border-right: 2px solid #3b3b3b; border-bottom: 2px solid #3b3b3b;
+    cursor: pointer; font-weight: bold; font-size: 11px;
+    color: #000;
+  }
+  .photo-edit-btn:active {
+    border-top: 2px solid #3b3b3b; border-left: 2px solid #3b3b3b;
+    border-right: 2px solid #ffffff; border-bottom: 2px solid #ffffff;
+  }
+
+  /* Taille */
+  .size-options { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-top: 4px; }
+  .size-btn {
+    padding: 6px 10px;
+    background: #c0c0c0;
+    border-top: 2px solid #ffffff; border-left: 2px solid #ffffff;
+    border-right: 2px solid #3b3b3b; border-bottom: 2px solid #3b3b3b;
+    cursor: pointer; font-weight: bold; font-size: 12px;
+  }
+  .size-btn.selected {
+    background: #d8388c; color: #fff;
+    border-top: 2px solid #7a2350; border-left: 2px solid #7a2350;
+    border-right: 2px solid #ff8cc0; border-bottom: 2px solid #ff8cc0;
+  }
+
+  /* Panier / prix */
+  #pwin-cart .price-line { font-size: 18px; font-weight: bold; text-align: center; margin-bottom: 10px; }
+  .qty-line { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 10px; }
+  .qty-line button {
+    width: 26px; height: 26px;
+    background: #c0c0c0;
+    border-top: 2px solid #ffffff; border-left: 2px solid #ffffff;
+    border-right: 2px solid #3b3b3b; border-bottom: 2px solid #3b3b3b;
+    cursor: pointer; font-weight: bold;
+  }
+  #pwin-add-btn {
+    width: 100%; padding: 8px;
+    background: linear-gradient(#c2477a, #7a2350);
+    color: #fff; border: none; border-radius: 3px;
+    font-weight: bold; cursor: pointer; font-size: 13px;
+  }
+  #pwin-add-btn:hover:not(:disabled) { background: linear-gradient(#d1588c, #8a2a5c); }
+  #pwin-add-btn:disabled { background: #999; cursor: not-allowed; }
+
+  /* Remarque */
+  #pwin-note textarea {
+    width: 100%; height: 80px; resize: none;
+    border: 1px solid #888; padding: 6px; font-family: inherit; font-size: 12px;
+    margin-bottom: 8px; box-sizing: border-box;
+  }
+  #pwin-note-save {
+    width: 100%; padding: 8px;
+    background: #c0c0c0;
+    border-top: 2px solid #ffffff; border-left: 2px solid #ffffff;
+    border-right: 2px solid #3b3b3b; border-bottom: 2px solid #3b3b3b;
+    cursor: pointer; font-weight: bold; font-size: 12px;
+  }
+
+  /* Positions ordonnées : toujours fixes, bien espacées en grille 2x2 */
+  #pwin-photos { top: calc(50% - 300px); left: calc(50% - 380px); }
+  #pwin-size   { top: calc(50% - 300px); left: calc(50% + 100px); }
+  #pwin-cart   { top: calc(50% + 70px);  left: calc(50% - 380px); }
+  #pwin-note   { top: calc(50% + 70px);  left: calc(50% + 100px); }
+
+  @media (max-width: 640px) {
+    .pwin { width: 88vw; left: 6vw !important; }
+    #pwin-photos { top: 4vh; }
+    #pwin-size   { top: 33vh; }
+    #pwin-cart   { top: 57vh; }
+    #pwin-note   { top: 78vh; }
+  }
+
+  /* ==== Menu "+ Image" (choisir un modèle / en créer un) ==== */
+  #pwin-image-menu   { top: 64px; left: calc(50% - 140px); width: 280px; }
+  #pwin-model-picker { top: 64px; left: calc(50% - 160px); width: 320px; }
+  #pwin-new-model    { top: 60px; left: calc(50% - 180px); width: 360px; }
+  #pwin-admin        { top: 60px; left: calc(50% - 280px); }
+  #pwin-postit-editor { top: 50px; left: calc(50% - 200px); }
+
+  .menu-btn {
+    display: block; width: 100%; margin-bottom: 8px; padding: 9px 10px;
+    background: #c0c0c0;
+    border-top: 2px solid #ffffff; border-left: 2px solid #ffffff;
+    border-right: 2px solid #3b3b3b; border-bottom: 2px solid #3b3b3b;
+    cursor: pointer; font-weight: bold; font-size: 12px; text-align: left;
+  }
+  .menu-btn:active {
+    border-top: 2px solid #3b3b3b; border-left: 2px solid #3b3b3b;
+    border-right: 2px solid #ffffff; border-bottom: 2px solid #ffffff;
+  }
+  .menu-btn:last-child { margin-bottom: 0; }
+
+  #model-picker-list { max-height: 260px; overflow-y: auto; }
+  .model-pick-btn {
+    display: block; width: 100%; text-align: left; margin-bottom: 6px;
+    padding: 7px 9px; background: #fff; border: 1px solid #ea8fb8;
+    cursor: pointer; font-size: 12px; color: #7a2350; border-radius: 3px;
+  }
+  .model-pick-btn:hover { background: #fdeaf2; }
+  .model-pick-cat { color: #999; font-size: 11px; }
+
+  .nm-field { margin-bottom: 9px; }
+  .nm-field label { display: block; font-size: 11px; font-weight: bold; margin-bottom: 3px; }
+  .nm-field input {
+    width: 100%; padding: 5px 6px; border: 1px solid #888; font-size: 12px; box-sizing: border-box;
+  }
+  #new-model-submit {
+    width: 100%; padding: 8px; margin-top: 4px;
+    background: linear-gradient(#c2477a, #7a2350);
+    color: #fff; border: none; border-radius: 3px;
+    font-weight: bold; cursor: pointer; font-size: 13px;
+  }
+  #new-model-submit:hover { background: linear-gradient(#d1588c, #8a2a5c); }
+
+  /* ==== Panneau "Gestion" (stock, photos, noms, catégories, prix) ==== */
+  #pwin-admin {
+    width: 560px;
+    max-width: 92vw;
+  }
+  #pwin-admin .pwin-body {
+    max-height: 70vh;
+    overflow-y: auto;
+  }
+  #admin-product-list {
+    margin-top: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .admin-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #fff;
+    border: 1px solid #999;
+    padding: 6px;
+  }
+  .admin-thumb {
+    width: 44px;
+    height: 44px;
+    object-fit: cover;
+    border: 1px solid #888;
+    flex-shrink: 0;
+    background: #eee;
+  }
+  .admin-fields {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+  .admin-fields input {
+    width: 100%;
+    padding: 4px 6px;
+    border: 1px solid #888;
+    font-size: 11px;
+    box-sizing: border-box;
+    font-family: inherit;
+  }
+  .admin-fields-row { display: flex; gap: 4px; }
+  .admin-fields-row input { width: 50%; }
+  .admin-name-input { font-weight: bold; }
+  .admin-photo-btn {
+    flex-shrink: 0;
+    width: 34px; height: 34px;
+    background: #c0c0c0;
+    border-top: 2px solid #ffffff; border-left: 2px solid #ffffff;
+    border-right: 2px solid #3b3b3b; border-bottom: 2px solid #3b3b3b;
+    cursor: pointer; font-size: 15px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .admin-photo-btn:active {
+    border-top: 2px solid #3b3b3b; border-left: 2px solid #3b3b3b;
+    border-right: 2px solid #ffffff; border-bottom: 2px solid #ffffff;
+  }
+
+  /* ==== Couche de fond personnalisée (sprite importé) sur un post-it ==== */
+  .postit-bg-layer {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    z-index: 0;
+    pointer-events: none;
+  }
+  .postit-bg-layer img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .postit-content {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+  }
+
+  /* ==== Popup "Personnaliser le post-it" (sprite / taille / orientation) ==== */
+  #pwin-postit-editor { width: 400px; }
+  .postit-preview-wrap {
+    width: 100%;
+    height: 220px;
+    background: repeating-conic-gradient(#e8e8e8 0% 25%, #ffffff 0% 50%) 50% / 20px 20px;
+    border: 1px solid #888;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 12px;
+  }
+  .postit-preview-wrap img {
+    max-width: 100%;
+    max-height: 100%;
+  }
+  .postit-preview-empty {
+    font-size: 12px;
+    color: #777;
+    font-family: "MS Sans Serif", Tahoma, sans-serif;
+  }
+  .pe-field { margin-bottom: 14px; }
+  .pe-field label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    font-weight: bold;
+    margin-bottom: 6px;
+  }
+  .pe-field input[type="range"] { width: 100%; }
+  .pe-rotation-buttons { display: flex; gap: 6px; margin-top: 8px; }
+  .pe-rotation-buttons button {
+    flex: 1;
+    background: #c0c0c0;
+    border-top: 2px solid #ffffff; border-left: 2px solid #ffffff;
+    border-right: 2px solid #3b3b3b; border-bottom: 2px solid #3b3b3b;
+    padding: 6px 4px; cursor: pointer; font-weight: bold; font-size: 11px;
+  }
+  .pe-rotation-buttons button:active {
+    border-top: 2px solid #3b3b3b; border-left: 2px solid #3b3b3b;
+    border-right: 2px solid #ffffff; border-bottom: 2px solid #ffffff;
+  }
+  #postit-clear-btn {
+    width: 100%;
+    margin-top: 4px;
+    padding: 8px;
+    background: #c0c0c0;
+    border-top: 2px solid #ffffff; border-left: 2px solid #ffffff;
+    border-right: 2px solid #3b3b3b; border-bottom: 2px solid #3b3b3b;
+    cursor: pointer; font-weight: bold; font-size: 12px; color: #7a1f18;
+  }
+  #postit-clear-btn:active {
+    border-top: 2px solid #3b3b3b; border-left: 2px solid #3b3b3b;
+    border-right: 2px solid #ffffff; border-bottom: 2px solid #ffffff;
+  }
+</style>
+</head>
+<body>
+
+<audio id="popup-sound-el" src="popup-sound.mp3" preload="auto"></audio>
+
+<header>
+  <h1 onclick="window.location.href='Page_acceuil.html'">Stringz.exe</h1>
+  <div style="display:flex; align-items:center; gap:8px;">
+    <button id="header-admin-btn" onclick="openAdminPanel()" style="display:none;">🛠 Gestion</button>
+    <input type="file" id="pwin-photo-upload" accept="image/*" onchange="addCustomImage(event)" style="display:none;">
+    <button id="cart-btn" onclick="openCart()">🛒 Panier (<span id="cart-count">0</span>)</button>
+  </div>
+</header>
+
+<div class="toolbar">
+  <input type="text" id="search" placeholder="Rechercher un produit..." oninput="renderProducts()">
+  <select id="category-filter" onchange="renderProducts()">
+    <option value="">Toutes catégories</option>
+  </select>
+  <select id="sort" onchange="renderProducts()">
+    <option value="default">Trier par défaut</option>
+    <option value="price-asc">Prix croissant</option>
+    <option value="price-desc">Prix décroissant</option>
+    <option value="name-asc">Nom A-Z</option>
+  </select>
+</div>
+
+<main>
+  <div id="product-grid"></div>
+</main>
+
+<div id="cart-overlay" onclick="closeCart()"></div>
+<div id="cart-panel">
+  <div id="cart-header">
+    <h2>Votre panier</h2>
+    <button id="close-cart" onclick="closeCart()">✕</button>
+  </div>
+  <div id="cart-items"></div>
+  <div id="cart-footer">
+    <div id="cart-total">
+      <span>Total</span>
+      <span id="total-amount">0,00 €</span>
+    </div>
+    <button id="checkout-btn" onclick="checkout()">Passer commande</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<!-- Fenêtres de détail produit -->
+<div id="product-overlay" onclick="closeProductWindows()"></div>
+
+<div class="pwin" id="pwin-photos">
+  <div class="pwin-titlebar">
+    <span class="pwin-title">Photos</span>
+    <div class="pwin-close" onclick="closeProductWindows()">✕</div>
+  </div>
+  <div class="pwin-body">
+    <img id="pwin-photo-img" src="" alt="">
+    <div class="photo-nav">
+      <button onclick="changeGalleryImage(-1)">◀ Précédent</button>
+      <button onclick="changeGalleryImage(1)">Suivant ▶</button>
+    </div>
+    <div class="photo-dots" id="pwin-photo-dots"></div>
+    <div class="photo-edit-row">
+      <label for="pwin-photo-replace" class="photo-edit-btn" title="Remplacer cette image">🔄 Remplacer</label>
+      <input type="file" id="pwin-photo-replace" accept="image/*" onchange="replaceCurrentImage(event)" style="display:none;">
+      <button type="button" class="photo-edit-btn" onclick="deleteCurrentImage()" title="Supprimer cette image">🗑 Supprimer</button>
+    </div>
+  </div>
+</div>
+
+<div class="pwin" id="pwin-size">
+  <div class="pwin-titlebar">
+    <span class="pwin-title">Taille</span>
+    <div class="pwin-close" onclick="closeProductWindows()">✕</div>
+  </div>
+  <div class="pwin-body">
+    <p style="text-align:center;margin-bottom:6px;">Choisis ta taille :</p>
+    <div class="size-options" id="pwin-size-options"></div>
+  </div>
+</div>
+
+<div class="pwin" id="pwin-cart">
+  <div class="pwin-titlebar">
+    <span class="pwin-title">Ajouter au panier</span>
+    <div class="pwin-close" onclick="closeProductWindows()">✕</div>
+  </div>
+  <div class="pwin-body">
+    <div class="price-line" id="pwin-price">0,00 €</div>
+    <div class="qty-line">
+      <button onclick="changeDetailQty(-1)">−</button>
+      <span id="pwin-qty">1</span>
+      <button onclick="changeDetailQty(1)">+</button>
+    </div>
+    <button id="pwin-add-btn" onclick="confirmAddToCart()">Ajouter au panier</button>
+  </div>
+</div>
+
+<div class="pwin" id="pwin-note">
+  <div class="pwin-titlebar">
+    <span class="pwin-title">Remarque</span>
+    <div class="pwin-close" onclick="closeProductWindows()">✕</div>
+  </div>
+  <div class="pwin-body">
+    <p style="margin-bottom:6px;">Une demande spécifique ?</p>
+    <textarea id="pwin-note-text" placeholder="Ex : broderie personnalisée, couleur sur mesure..."></textarea>
+    <button id="pwin-note-save" onclick="saveRemark()">Enregistrer la remarque</button>
+  </div>
+</div>
+
+<!-- Panneau de gestion (admin) -->
+<div class="pwin" id="pwin-admin">
+  <div class="pwin-titlebar">
+    <span class="pwin-title">🛠 Gestion de la boutique</span>
+    <div class="pwin-close" onclick="closeAdminPanel()">✕</div>
+  </div>
+  <div class="pwin-body">
+    <button type="button" class="menu-btn" onclick="openImageMenu()">➕ Ajouter une image / un nouvel article</button>
+    <input type="file" id="pwin-postit-upload" accept="image/png" onchange="handlePostitUpload(event)" style="display:none;">
+    <div id="admin-product-list"></div>
+  </div>
+</div>
+
+<!-- Popup de personnalisation du post-it : sprite / taille / orientation -->
+<div class="pwin" id="pwin-postit-editor">
+  <div class="pwin-titlebar">
+    <span class="pwin-title">🖼️ Personnaliser le post-it</span>
+    <div class="pwin-close" onclick="closePostitEditor()">✕</div>
+  </div>
+  <div class="pwin-body">
+    <div class="postit-preview-wrap" id="postit-editor-preview">
+      <span class="postit-preview-empty">Aucun sprite choisi</span>
+    </div>
+
+    <button type="button" class="menu-btn" onclick="document.getElementById('pwin-postit-upload').click()">📁 Choisir un sprite (PNG)</button>
+
+    <div class="pe-field">
+      <label><span>Taille du sprite</span><span id="postit-size-value">100%</span></label>
+      <input type="range" id="postit-size-range" min="50" max="220" step="5" value="100" oninput="updatePostitSize(this.value)">
+    </div>
+
+    <div class="pe-field">
+      <label><span>Largeur uniquement</span><span id="postit-scalex-value">100%</span></label>
+      <input type="range" id="postit-scalex-range" min="30" max="250" step="5" value="100" oninput="updatePostitScaleX(this.value)">
+    </div>
+
+    <div class="pe-field">
+      <label><span>Hauteur uniquement</span><span id="postit-scaley-value">100%</span></label>
+      <input type="range" id="postit-scaley-range" min="30" max="250" step="5" value="100" oninput="updatePostitScaleY(this.value)">
+    </div>
+
+    <div class="pe-field">
+      <label><span>Orientation</span><span id="postit-rotation-value">0°</span></label>
+      <input type="range" id="postit-rotation-range" min="-25" max="25" step="5" value="0" oninput="updatePostitRotation(this.value)">
+      <div class="pe-rotation-buttons">
+        <button type="button" onclick="nudgeRotation(-25)">↺ -25°</button>
+        <button type="button" onclick="nudgeRotation(25)">↻ +25°</button>
+        <button type="button" onclick="resetRotation()">Réinitialiser</button>
+      </div>
+    </div>
+
+    <button type="button" id="postit-clear-btn" onclick="clearPostit()">🗑️ Retirer le sprite personnalisé</button>
+  </div>
+</div>
+
+<!-- Menu déclenché par + Image -->
+<div class="pwin" id="pwin-image-menu">
+  <div class="pwin-titlebar">
+    <span class="pwin-title">Ajouter une image</span>
+    <div class="pwin-close" onclick="closeAllMenuPopups()">✕</div>
+  </div>
+  <div class="pwin-body">
+    <button type="button" class="menu-btn" onclick="openModelPicker()">📦 Choisir un modèle existant</button>
+    <button type="button" class="menu-btn" onclick="openNewModelForm()">➕ Ajouter un nouveau modèle</button>
+  </div>
+</div>
+
+<div class="pwin" id="pwin-model-picker">
+  <div class="pwin-titlebar">
+    <span class="pwin-title">Choisir un modèle</span>
+    <div class="pwin-close" onclick="closeAllMenuPopups()">✕</div>
+  </div>
+  <div class="pwin-body">
+    <div id="model-picker-list"></div>
+  </div>
+</div>
+
+<div class="pwin" id="pwin-new-model">
+  <div class="pwin-titlebar">
+    <span class="pwin-title">Nouveau modèle</span>
+    <div class="pwin-close" onclick="closeAllMenuPopups()">✕</div>
+  </div>
+  <div class="pwin-body">
+    <form id="new-model-form" onsubmit="return handleCreateModel(event)">
+      <div class="nm-field">
+        <label for="new-model-name">Nom du modèle</label>
+        <input type="text" id="new-model-name" placeholder="Ex : String 6" required>
+      </div>
+      <div class="nm-field">
+        <label for="new-model-category">Catégorie</label>
+        <input type="text" id="new-model-category" placeholder="Ex : String" required>
+      </div>
+      <div class="nm-field">
+        <label for="new-model-price">Prix (€)</label>
+        <input type="number" id="new-model-price" step="0.01" min="0" placeholder="Ex : 49.90" required>
+      </div>
+      <div class="nm-field">
+        <label for="new-model-stock">Stock</label>
+        <input type="number" id="new-model-stock" step="1" min="0" placeholder="Ex : 10" required>
+      </div>
+      <div class="nm-field">
+        <label for="new-model-image">Photo (optionnel)</label>
+        <input type="file" id="new-model-image" accept="image/*">
+      </div>
+      <button type="submit" id="new-model-submit">Créer le modèle</button>
+    </form>
+  </div>
+</div>
+
+<script>
+// ---- Données produits (remplace par tes vrais produits / API) ----
+const products = [
+  { id: 1, name: "String 1", category: "String", price: 89.99, stock: 12, img: "https://placehold.co/300x200?text=String 1" },
+  { id: 2, name: "Culotte 1", category: "Culotte", price: 149.00, stock: 5, img: "https://placehold.co/300x200?text=Culotte 1" },
+  { id: 3, name: "String 2", category: "String", price: 65.50, stock: 0, img: "https://placehold.co/300x200?text=String 2" },
+  { id: 4, name: "Caleçon 1", category: "Caleçon", price: 210.00, stock: 8, img: "https://placehold.co/300x200?text=Caleçon 1" },
+  { id: 5, name: "Culotte 2", category: "Culotte", price: 34.90, stock: 20, img: "https://placehold.co/300x200?text=Culotte 2" },
+  { id: 6, name: "String 3", category: "String", price: 79.00, stock: 3, img: "https://placehold.co/300x200?text=String 3" },
+  { id: 7, name: "String 4", category: "String", price: 29.90, stock: 15, img: "https://placehold.co/300x200?text=String 4" },
+  { id: 8, name: "String 5", category: "String", price: 249.00, stock: 6, img: "https://placehold.co/300x200?text=String 5" },
+];
+
+let cart = {}; // { productId: quantity }
+
+// Génère 3 photos et une liste de tailles pour chaque produit (démo)
+products.forEach(p => {
+  p.images = [1, 2, 3].map(n => `https://placehold.co/500x400?text=${encodeURIComponent(p.name + ' - Vue ' + n)}`);
+  p.sizes = ["XS", "S", "M", "L", "XL"];
+});
+
+// État de la fenêtre de détail produit
+const remarks = {};      // { productId: texte de la remarque }
+let currentProduct = null;
+let galleryIndex = 0;
+let selectedSize = null;
+let detailQty = 1;
+
+// ---- Initialisation des catégories ----
+function initCategories() {
+  const categories = [...new Set(products.map(p => p.category))];
+  const select = document.getElementById("category-filter");
+  categories.forEach(cat => {
+    const opt = document.createElement("option");
+    opt.value = cat;
+    opt.textContent = cat;
+    select.appendChild(opt);
+  });
+}
+
+// ---- Rendu des produits ----
+function buildCard(p) {
+  const card = document.createElement("div");
+  card.className = "product-card";
+  card.dataset.id = p.id;
+  card.addEventListener("click", () => openProductWindows(p.id));
+  updateCardContent(card, p);
+  return card;
+}
+
+// Taille de référence d'un post-it (100%) et limite max pour ne jamais empiéter sur les voisins
+const POSTIT_BASE = 200;
+const POSTIT_MIN = 90;
+const POSTIT_MAX = 260;
+
+function productContentHTML(p, stockClass, stockLabel) {
+  return `
+    <img src="${(p.images && p.images[0]) || p.img}" alt="${p.name}">
+    <h3>${p.name}</h3>
+    <div class="cat">${p.category}</div>
+    <div class="price">${p.price.toFixed(2).replace('.', ',')} €</div>
+    <div class="stock ${stockClass}">${stockLabel}</div>
+    <button ${p.stock === 0 ? "disabled" : ""} onclick="event.stopPropagation(); openProductWindows(${p.id})">
+      ${p.stock === 0 ? "Indisponible" : "Ajouter au panier"}
+    </button>
+  `;
+}
+
+function updateCardContent(card, p) {
+  const stockClass = p.stock === 0 ? "out" : p.stock <= 5 ? "low" : "ok";
+  const stockLabel = p.stock === 0 ? "Rupture de stock" : p.stock <= 5 ? `Plus que ${p.stock} en stock` : "En stock";
+
+  if (p.postit) {
+    const overall = (p.postitSize || 100) / 100;
+    const scaleX = overall * ((p.postitScaleX || 100) / 100);
+    const scaleY = overall * ((p.postitScaleY || 100) / 100);
+    const rotation = p.postitRotation || 0;
+
+    // La carte elle-même adopte la taille du sprite (bornée par POSTIT_MIN/MAX) :
+    // pas de zone vide/transparente autour, et jamais assez grande pour empiéter
+    // sur les post-its voisins.
+    const width = Math.min(POSTIT_MAX, Math.max(POSTIT_MIN, POSTIT_BASE * scaleX));
+    const height = Math.min(POSTIT_MAX, Math.max(POSTIT_MIN, POSTIT_BASE * scaleY));
+
+    card.style.width = width + "px";
+    card.style.height = height + "px";
+    // La carte entière tourne : c'est la vraie zone de clic/survol qui suit
+    // l'orientation, et comme le contenu est un enfant normal, il tourne
+    // naturellement avec elle (pas de contre-rotation).
+    card.style.transform = `rotate(${rotation}deg)`;
+    card.style.fontSize = "";
+    card.style.background = "transparent";
+    card.style.overflow = "hidden";
+
+    card.innerHTML = `
+      <div class="postit-bg-layer"><img src="${p.postit}"></div>
+      <div class="postit-content" id="pc-${p.id}" style="position:absolute; top:0; left:0; width:${POSTIT_BASE}px; padding:18px 16px 30px 16px; box-sizing:border-box; transform-origin: top left;">
+        ${productContentHTML(p, stockClass, stockLabel)}
+      </div>
+    `;
+
+    // Mesure la hauteur naturelle du contenu (non compressé), puis l'étire
+    // ou le compresse pour qu'il remplisse EXACTEMENT la carte : rien n'est
+    // jamais coupé, tout reste toujours entièrement visible.
+    const contentEl = card.querySelector(".postit-content");
+    const naturalHeight = contentEl.offsetHeight || POSTIT_BASE;
+    const sx = width / POSTIT_BASE;
+    const sy = height / naturalHeight;
+    contentEl.style.transform = `scale(${sx}, ${sy})`;
+  } else {
+    card.style.width = "";
+    card.style.height = "";
+    card.style.fontSize = "";
+    card.style.background = "";
+    card.style.transform = "";
+    card.style.overflow = "";
+
+    card.innerHTML = `
+      <div class="postit-content">
+        ${productContentHTML(p, stockClass, stockLabel)}
+      </div>
+    `;
+  }
+}
+
+function playPaperSound() {
+  const sound = new Audio('papier-froisse.mp3');
+  sound.play().catch(() => {}); // ignore si le navigateur bloque l'autoplay avant interaction
+}
+
+function dropCard(card) {
+  // Décroche le post-it du tableau : chute avec rotation et dérive aléatoires
+  const dx = Math.round(Math.random() * 200 - 100);
+  const rot = Math.round(Math.random() * 160 - 80);
+  card.style.setProperty('--fall-x', dx + 'px');
+  card.style.setProperty('--fall-rot', rot + 'deg');
+  card.classList.add('falling');
+  card.style.pointerEvents = 'none';
+  playPaperSound();
+  setTimeout(() => card.remove(), 700);
+}
+
+function renderProducts() {
+  const search = document.getElementById("search").value.toLowerCase();
+  const category = document.getElementById("category-filter").value;
+  const sort = document.getElementById("sort").value;
+
+  let list = products.filter(p =>
+    p.name.toLowerCase().includes(search) &&
+    (category === "" || p.category === category)
+  );
+
+  if (sort === "price-asc") list.sort((a,b) => a.price - b.price);
+  if (sort === "price-desc") list.sort((a,b) => b.price - a.price);
+  if (sort === "name-asc") list.sort((a,b) => a.name.localeCompare(b.name));
+
+  const grid = document.getElementById("product-grid");
+  const emptyMsg = grid.querySelector(".empty-msg");
+  if (emptyMsg) emptyMsg.remove();
+
+  const keepIds = new Set(list.map(p => p.id));
+  const existingCards = Array.from(grid.querySelectorAll(".product-card"));
+
+  // Les post-its qui ne correspondent plus au filtre se décrochent et tombent
+  existingCards.forEach(card => {
+    const id = Number(card.dataset.id);
+    if (!keepIds.has(id) && !card.classList.contains('falling')) {
+      dropCard(card);
+    }
+  });
+
+  if (list.length === 0) {
+    if (!grid.querySelector(".empty-msg")) {
+      const msg = document.createElement("p");
+      msg.className = "empty-msg";
+      msg.textContent = "Aucun produit trouvé.";
+      grid.appendChild(msg);
+    }
+    return;
+  }
+
+  // Garde/insère les post-its correspondants, dans le bon ordre (via l'ordre CSS),
+  // et rafraîchit leur contenu (nom, prix, stock, catégorie) au cas où ils auraient été modifiés
+  list.forEach((p, index) => {
+    let card = grid.querySelector(`.product-card[data-id="${p.id}"]:not(.falling)`);
+    if (!card) {
+      card = buildCard(p);
+      grid.appendChild(card);
+    } else {
+      updateCardContent(card, p);
+    }
+    card.style.order = index;
+  });
+}
+
+// ---- Gestion du panier ----
+function addToCart(id) {
+  const product = products.find(p => p.id === id);
+  const currentQty = cart[id] || 0;
+  if (currentQty >= product.stock) {
+    showToast("Stock maximum atteint pour ce produit.");
+    return;
+  }
+  cart[id] = currentQty + 1;
+  updateCartUI();
+  showToast(`${product.name} ajouté au panier`);
+}
+
+function changeQty(id, delta) {
+  const product = products.find(p => p.id === id);
+  let qty = (cart[id] || 0) + delta;
+  if (qty <= 0) {
+    delete cart[id];
+  } else if (qty > product.stock) {
+    showToast("Stock maximum atteint pour ce produit.");
+    return;
+  } else {
+    cart[id] = qty;
+  }
+  updateCartUI();
+}
+
+function removeFromCart(id) {
+  delete cart[id];
+  updateCartUI();
+}
+
+function updateCartUI() {
+  const itemsContainer = document.getElementById("cart-items");
+  const ids = Object.keys(cart);
+  let total = 0;
+  let count = 0;
+
+  if (ids.length === 0) {
+    itemsContainer.innerHTML = '<p class="empty-msg">Votre panier est vide.</p>';
+  } else {
+    itemsContainer.innerHTML = "";
+    ids.forEach(id => {
+      const product = products.find(p => p.id == id);
+      const qty = cart[id];
+      const subtotal = product.price * qty;
+      total += subtotal;
+      count += qty;
+
+      const item = document.createElement("div");
+      item.className = "cart-item";
+      item.innerHTML = `
+        <div class="name">${product.name}<br><small>${product.price.toFixed(2).replace('.', ',')} € x ${qty}</small></div>
+        <div class="qty-controls">
+          <button onclick="changeQty(${product.id}, -1)">−</button>
+          <span>${qty}</span>
+          <button onclick="changeQty(${product.id}, 1)">+</button>
+        </div>
+        <button class="remove" onclick="removeFromCart(${product.id})">Suppr.</button>
+      `;
+      itemsContainer.appendChild(item);
+    });
+  }
+
+  document.getElementById("cart-count").textContent = count;
+  document.getElementById("total-amount").textContent = total.toFixed(2).replace('.', ',') + " €";
+  document.getElementById("checkout-btn").disabled = count === 0;
+}
+
+// ---- Panneau panier ----
+function openCart() {
+  document.getElementById("cart-panel").classList.add("open");
+  document.getElementById("cart-overlay").classList.add("open");
+}
+function closeCart() {
+  document.getElementById("cart-panel").classList.remove("open");
+  document.getElementById("cart-overlay").classList.remove("open");
+}
+
+// ---- Checkout ----
+async function checkout() {
+  if (Object.keys(cart).length === 0) return;
+
+  const btn = document.getElementById("checkout-btn");
+  btn.disabled = true;
+  btn.textContent = "Redirection vers le paiement...";
+
+  try {
+    const response = await fetch("/api/create-checkout-session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cart }),
+    });
+
+    if (!response.ok) throw new Error("Erreur lors de la création du paiement.");
+
+    const data = await response.json();
+    window.location.href = data.url; // redirige vers la vraie page de paiement Stripe
+  } catch (err) {
+    console.error(err);
+    showToast("Le paiement n'a pas pu être initié. Réessaie plus tard.");
+    btn.disabled = false;
+    btn.textContent = "Passer commande";
+  }
+}
+
+// ---- Toast ----
+let toastTimeout;
+function showToast(msg) {
+  const toast = document.getElementById("toast");
+  toast.textContent = msg;
+  toast.classList.add("show");
+  clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(() => toast.classList.remove("show"), 2000);
+}
+
+// ---- Fenêtres de détail produit (photos / taille / panier / remarque) ----
+const PWIN_IDS = ["pwin-photos", "pwin-size", "pwin-cart", "pwin-note"];
+
+// Compteur de z-index partagé par toutes les fenêtres pwin (drag ou ouverture programmatique)
+let pwinTopZ = 41;
+function bringPwinToFront(el) {
+  pwinTopZ++;
+  el.style.zIndex = pwinTopZ;
+}
+
+function playPopupSound() {
+  const base = document.getElementById('popup-sound-el');
+  const sound = base.cloneNode(true);
+  sound.play().catch(() => {}); // ignore si le navigateur bloque l'autoplay avant interaction
+}
+
+function openProductWindows(id) {
+  currentProduct = products.find(p => p.id === id);
+  if (!currentProduct) return;
+
+  galleryIndex = 0;
+  selectedSize = null;
+  detailQty = 1;
+
+  document.getElementById("pwin-note-text").value = remarks[id] || "";
+
+  renderGallery();
+  renderSizeOptions();
+  renderDetailCart();
+
+  document.getElementById("product-overlay").classList.add("open");
+
+  // Ouverture ordonnée (toujours dans le même ordre et aux mêmes positions),
+  // avec un très léger décalage pour un effet de cascade, sans aléatoire.
+  PWIN_IDS.forEach(wid => {
+    const el = document.getElementById(wid);
+    el.classList.remove("show");
+    // Efface toute position/transform laissée par un glisser-déposer précédent,
+    // pour repartir systématiquement de la disposition par défaut (CSS).
+    el.style.left = "";
+    el.style.top = "";
+  });
+  PWIN_IDS.forEach((wid, i) => {
+    const el = document.getElementById(wid);
+    el.classList.add("open");
+    setTimeout(() => {
+      el.classList.add("show");
+      playPopupSound();
+    }, i * 120);
+  });
+}
+
+function closeProductWindows() {
+  document.getElementById("product-overlay").classList.remove("open");
+  PWIN_IDS.forEach(wid => {
+    const el = document.getElementById(wid);
+    el.classList.remove("show");
+    setTimeout(() => el.classList.remove("open"), 200);
+  });
+}
+
+// -- Photos --
+function renderGallery() {
+  const img = document.getElementById("pwin-photo-img");
+  img.src = currentProduct.images[galleryIndex];
+  img.alt = currentProduct.name;
+  const dots = document.getElementById("pwin-photo-dots");
+  dots.innerHTML = currentProduct.images
+    .map((_, i) => `<span class="${i === galleryIndex ? "active" : ""}"></span>`)
+    .join("");
+}
+function refreshCardThumbnail(product) {
+  const cardImg = document.querySelector(`.product-card[data-id="${product.id}"] img`);
+  if (cardImg) cardImg.src = product.images[0];
+
+  const adminThumb = document.querySelector(`.admin-row[data-id="${product.id}"] .admin-thumb`);
+  if (adminThumb) adminThumb.src = product.images[0];
+}
+function changeGalleryImage(delta) {
+  if (!currentProduct) return;
+  const n = currentProduct.images.length;
+  galleryIndex = (galleryIndex + delta + n) % n;
+  renderGallery();
+}
+function replaceCurrentImage(event) {
+  const file = event.target.files[0];
+  event.target.value = "";
+  if (!file || !currentProduct) return;
+  if (!isAdmin) {
+    showToast("Réservé aux administrateurs.");
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    currentProduct.images[galleryIndex] = e.target.result;
+    currentProduct.img = currentProduct.images[0];
+    renderGallery();
+    refreshCardThumbnail(currentProduct);
+    showToast("Image remplacée.");
+  };
+  reader.readAsDataURL(file);
+}
+function deleteCurrentImage() {
+  if (!currentProduct) return;
+  if (!isAdmin) {
+    showToast("Réservé aux administrateurs.");
+    return;
+  }
+  if (currentProduct.images.length <= 1) {
+    showToast("Il doit rester au moins une image.");
+    return;
+  }
+  currentProduct.images.splice(galleryIndex, 1);
+  if (galleryIndex >= currentProduct.images.length) galleryIndex = currentProduct.images.length - 1;
+  currentProduct.img = currentProduct.images[0];
+  renderGallery();
+  refreshCardThumbnail(currentProduct);
+  showToast("Image supprimée.");
+}
+function addCustomImage(event) {
+  const file = event.target.files[0];
+  event.target.value = "";
+  if (!file) return;
+  if (!isAdmin) {
+    showToast("Réservé aux administrateurs.");
+    return;
+  }
+  if (!currentProduct) {
+    showToast("Ouvre d'abord un produit pour lui ajouter une image.");
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    currentProduct.images.push(e.target.result);
+    galleryIndex = currentProduct.images.length - 1;
+    renderGallery();
+    showToast("Image ajoutée.");
+  };
+  reader.readAsDataURL(file);
+}
+
+// ---- Menu "+ Image" : choisir un modèle existant ou en créer un ----
+const MENU_PWIN_IDS = ["pwin-image-menu", "pwin-model-picker", "pwin-new-model"];
+
+// ---- Accès admin ----
+// Mets 1 pour forcer le mode admin depuis le code, 0 sinon.
+// Se connecter en tant qu'admin depuis connexion.html fonctionne aussi (indépendamment de ce réglage).
+const ADMIN_MODE = 0;
+let isAdmin = ADMIN_MODE === 1 || localStorage.getItem("stringzAdmin") === "true";
+
+function updateAdminUI() {
+  document.getElementById("header-admin-btn").style.display = isAdmin ? "inline-block" : "none";
+  document.querySelectorAll(".photo-edit-row").forEach(el => {
+    el.style.display = isAdmin ? "flex" : "none";
+  });
+}
+
+function closeAllMenuPopups() {
+  MENU_PWIN_IDS.forEach(wid => {
+    const el = document.getElementById(wid);
+    el.classList.remove("show");
+    el.classList.remove("open");
+  });
+}
+
+// ---- Panneau de gestion (admin) ----
+function openAdminPanel() {
+  if (!isAdmin) {
+    showToast("Réservé aux administrateurs.");
+    return;
+  }
+  closeAllMenuPopups();
+  renderAdminList();
+  const el = document.getElementById("pwin-admin");
+  el.classList.add("open");
+  requestAnimationFrame(() => el.classList.add("show"));
+}
+
+function closeAdminPanel() {
+  const el = document.getElementById("pwin-admin");
+  el.classList.remove("show");
+  el.classList.remove("open");
+}
+
+function renderAdminList() {
+  const container = document.getElementById("admin-product-list");
+  container.innerHTML = products.map(p => `
+    <div class="admin-row" data-id="${p.id}">
+      <img class="admin-thumb" src="${(p.images && p.images[0]) || p.img}" alt="${p.name}">
+      <div class="admin-fields">
+        <input type="text" class="admin-name-input" value="${p.name}"
+               onchange="updateProductField(${p.id}, 'name', this.value)">
+        <input type="text" value="${p.category}"
+               onchange="updateProductField(${p.id}, 'category', this.value)">
+        <div class="admin-fields-row">
+          <input type="number" step="0.01" min="0" value="${p.price}"
+                 onchange="updateProductField(${p.id}, 'price', this.value)" title="Prix (€)">
+          <input type="number" step="1" min="0" value="${p.stock}"
+                 onchange="updateProductField(${p.id}, 'stock', this.value)" title="Stock">
+        </div>
+      </div>
+      <button type="button" class="admin-photo-btn" title="Modifier les photos" onclick="openPhotosOnly(${p.id})">📷</button>
+      <button type="button" class="admin-photo-btn" title="Personnaliser le post-it" onclick="openPostitEditor(${p.id})">🖼️</button>
+    </div>
+  `).join("");
+}
+
+let postitTargetId = null; // produit ciblé par la popup de personnalisation en cours
+
+function openPostitEditor(id) {
+  postitTargetId = id;
+  const p = products.find(x => x.id === id);
+  if (!p) return;
+
+  if (p.postitSize == null) p.postitSize = 100;
+  if (p.postitScaleX == null) p.postitScaleX = 100;
+  if (p.postitScaleY == null) p.postitScaleY = 100;
+  if (p.postitRotation == null) p.postitRotation = 0;
+
+  document.getElementById("postit-size-range").value = p.postitSize;
+  document.getElementById("postit-size-value").textContent = p.postitSize + "%";
+  document.getElementById("postit-scalex-range").value = p.postitScaleX;
+  document.getElementById("postit-scalex-value").textContent = p.postitScaleX + "%";
+  document.getElementById("postit-scaley-range").value = p.postitScaleY;
+  document.getElementById("postit-scaley-value").textContent = p.postitScaleY + "%";
+  document.getElementById("postit-rotation-range").value = p.postitRotation;
+  document.getElementById("postit-rotation-value").textContent = p.postitRotation + "°";
+
+  renderPostitPreview();
+
+  const el = document.getElementById("pwin-postit-editor");
+  el.classList.add("open");
+  requestAnimationFrame(() => el.classList.add("show"));
+  bringPwinToFront(el);
+}
+
+function closePostitEditor() {
+  const el = document.getElementById("pwin-postit-editor");
+  el.classList.remove("show");
+  el.classList.remove("open");
+  postitTargetId = null;
+}
+
+function renderPostitPreview() {
+  const p = products.find(x => x.id === postitTargetId);
+  const preview = document.getElementById("postit-editor-preview");
+  if (!p || !p.postit) {
+    preview.innerHTML = '<span class="postit-preview-empty">Aucun sprite choisi</span>';
+    return;
+  }
+  const overall = (p.postitSize || 100) / 100;
+  const sx = overall * ((p.postitScaleX || 100) / 100);
+  const sy = overall * ((p.postitScaleY || 100) / 100);
+  preview.innerHTML = `<img src="${p.postit}" style="transform: rotate(${p.postitRotation || 0}deg) scale(${sx}, ${sy});">`;
+}
+
+function updatePostitSize(val) {
+  const p = products.find(x => x.id === postitTargetId);
+  if (!p) return;
+  p.postitSize = parseInt(val, 10);
+  document.getElementById("postit-size-value").textContent = p.postitSize + "%";
+  renderPostitPreview();
+  renderProducts();
+}
+
+function updatePostitScaleX(val) {
+  const p = products.find(x => x.id === postitTargetId);
+  if (!p) return;
+  p.postitScaleX = parseInt(val, 10);
+  document.getElementById("postit-scalex-value").textContent = p.postitScaleX + "%";
+  renderPostitPreview();
+  renderProducts();
+}
+
+function updatePostitScaleY(val) {
+  const p = products.find(x => x.id === postitTargetId);
+  if (!p) return;
+  p.postitScaleY = parseInt(val, 10);
+  document.getElementById("postit-scaley-value").textContent = p.postitScaleY + "%";
+  renderPostitPreview();
+  renderProducts();
+}
+
+function updatePostitRotation(val) {
+  const p = products.find(x => x.id === postitTargetId);
+  if (!p) return;
+  p.postitRotation = Math.min(25, Math.max(-25, parseInt(val, 10)));
+  document.getElementById("postit-rotation-value").textContent = p.postitRotation + "°";
+  renderPostitPreview();
+  renderProducts();
+}
+
+function nudgeRotation(delta) {
+  const p = products.find(x => x.id === postitTargetId);
+  if (!p) return;
+  const r = Math.min(25, Math.max(-25, (p.postitRotation || 0) + delta));
+  document.getElementById("postit-rotation-range").value = r;
+  updatePostitRotation(r);
+}
+
+function resetRotation() {
+  document.getElementById("postit-rotation-range").value = 0;
+  updatePostitRotation(0);
+}
+
+function clearPostit() {
+  const p = products.find(x => x.id === postitTargetId);
+  if (!p) return;
+  delete p.postit;
+  p.postitSize = 100;
+  p.postitScaleX = 100;
+  p.postitScaleY = 100;
+  p.postitRotation = 0;
+  document.getElementById("postit-size-range").value = 100;
+  document.getElementById("postit-size-value").textContent = "100%";
+  document.getElementById("postit-scalex-range").value = 100;
+  document.getElementById("postit-scalex-value").textContent = "100%";
+  document.getElementById("postit-scaley-range").value = 100;
+  document.getElementById("postit-scaley-value").textContent = "100%";
+  document.getElementById("postit-rotation-range").value = 0;
+  document.getElementById("postit-rotation-value").textContent = "0°";
+  renderPostitPreview();
+  renderProducts();
+  showToast("Post-it réinitialisé.");
+}
+
+function handlePostitUpload(event) {
+  const file = event.target.files[0];
+  if (!file || postitTargetId == null) { event.target.value = ""; return; }
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const p = products.find(x => x.id === postitTargetId);
+    if (p) {
+      p.postit = e.target.result;
+      renderPostitPreview();
+      renderProducts();
+      showToast("Sprite de post-it appliqué.");
+    }
+    event.target.value = "";
+  };
+  reader.readAsDataURL(file);
+}
+
+function updateProductField(id, field, rawValue) {
+  const p = products.find(x => x.id === id);
+  if (!p) return;
+
+  if (field === "price") {
+    p.price = Math.max(0, parseFloat(rawValue)) || 0;
+  } else if (field === "stock") {
+    p.stock = Math.max(0, parseInt(rawValue, 10)) || 0;
+  } else if (field === "name") {
+    p.name = rawValue.trim() || p.name;
+  } else if (field === "category") {
+    p.category = rawValue.trim() || p.category;
+    addCategoryOptionIfNew(p.category);
+  }
+
+  renderProducts();
+  showToast("Article mis à jour.");
+}
+
+// Ouvre uniquement la fenêtre Photos (sans Taille/Panier/Remarque), pour éditer vite depuis la gestion
+function openPhotosOnly(id) {
+  currentProduct = products.find(p => p.id === id);
+  if (!currentProduct) return;
+
+  galleryIndex = 0;
+  renderGallery();
+
+  const el = document.getElementById("pwin-photos");
+  el.classList.add("open");
+  requestAnimationFrame(() => el.classList.add("show"));
+}
+
+function openImageMenu() {
+  if (!isAdmin) {
+    showToast("Réservé aux administrateurs.");
+    return;
+  }
+  closeAllMenuPopups();
+  const el = document.getElementById("pwin-image-menu");
+  el.classList.add("open");
+  requestAnimationFrame(() => el.classList.add("show"));
+}
+
+function openModelPicker() {
+  closeAllMenuPopups();
+  renderModelPickerList();
+  const el = document.getElementById("pwin-model-picker");
+  el.classList.add("open");
+  requestAnimationFrame(() => el.classList.add("show"));
+}
+
+function renderModelPickerList() {
+  const container = document.getElementById("model-picker-list");
+  container.innerHTML = products.map(p =>
+    `<button type="button" class="model-pick-btn" onclick="selectModelForImage(${p.id})">${p.name} <span class="model-pick-cat">(${p.category})</span></button>`
+  ).join("");
+}
+
+function selectModelForImage(id) {
+  currentProduct = products.find(p => p.id === id);
+  closeAllMenuPopups();
+  document.getElementById("pwin-photo-upload").click();
+}
+
+function openNewModelForm() {
+  closeAllMenuPopups();
+  document.getElementById("new-model-form").reset();
+  const el = document.getElementById("pwin-new-model");
+  el.classList.add("open");
+  requestAnimationFrame(() => el.classList.add("show"));
+}
+
+function addCategoryOptionIfNew(cat) {
+  const select = document.getElementById("category-filter");
+  const exists = Array.from(select.options).some(o => o.value === cat);
+  if (!exists) {
+    const opt = document.createElement("option");
+    opt.value = cat;
+    opt.textContent = cat;
+    select.appendChild(opt);
+  }
+}
+
+function handleCreateModel(event) {
+  event.preventDefault();
+
+  const name = document.getElementById("new-model-name").value.trim();
+  const category = document.getElementById("new-model-category").value.trim();
+  const price = parseFloat(document.getElementById("new-model-price").value);
+  const stock = parseInt(document.getElementById("new-model-stock").value, 10);
+  const fileInput = document.getElementById("new-model-image");
+
+  if (!name || !category || isNaN(price) || price < 0 || isNaN(stock) || stock < 0) {
+    showToast("Merci de remplir correctement tous les champs.");
+    return false;
+  }
+
+  const newId = products.length ? Math.max(...products.map(p => p.id)) + 1 : 1;
+
+  function finalizeCreate(imageUrl) {
+    const img = imageUrl || `https://placehold.co/500x400?text=${encodeURIComponent(name)}`;
+    const newProduct = {
+      id: newId,
+      name,
+      category,
+      price,
+      stock,
+      img,
+      images: [img],
+      sizes: ["XS", "S", "M", "L", "XL"]
+    };
+    products.push(newProduct);
+    addCategoryOptionIfNew(category);
+    renderProducts();
+    closeAllMenuPopups();
+    showToast(`Nouveau modèle "${name}" ajouté (stock : ${stock}).`);
+  }
+
+  const file = fileInput.files[0];
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = (e) => finalizeCreate(e.target.result);
+    reader.readAsDataURL(file);
+  } else {
+    finalizeCreate(null);
+  }
+  return false;
+}
+
+// -- Taille --
+function renderSizeOptions() {
+  const container = document.getElementById("pwin-size-options");
+  container.innerHTML = currentProduct.sizes
+    .map(s => `<button type="button" class="size-btn" onclick="selectSize('${s}')">${s}</button>`)
+    .join("");
+}
+function selectSize(size) {
+  selectedSize = size;
+  document.querySelectorAll("#pwin-size-options .size-btn").forEach(btn => {
+    btn.classList.toggle("selected", btn.textContent === size);
+  });
+}
+
+// -- Ajouter au panier --
+function renderDetailCart() {
+  document.getElementById("pwin-price").textContent =
+    (currentProduct.price * detailQty).toFixed(2).replace(".", ",") + " €";
+  document.getElementById("pwin-qty").textContent = detailQty;
+  const btn = document.getElementById("pwin-add-btn");
+  btn.disabled = currentProduct.stock === 0;
+  btn.textContent = currentProduct.stock === 0 ? "Indisponible" : "Ajouter au panier";
+}
+function changeDetailQty(delta) {
+  if (!currentProduct) return;
+  const newQty = detailQty + delta;
+  if (newQty < 1) return;
+  if (newQty > currentProduct.stock) {
+    showToast("Stock maximum atteint pour ce produit.");
+    return;
+  }
+  detailQty = newQty;
+  renderDetailCart();
+}
+function confirmAddToCart() {
+  if (!currentProduct) return;
+  if (!selectedSize) {
+    showToast("Choisis une taille avant d'ajouter au panier.");
+    return;
+  }
+  const currentQty = cart[currentProduct.id] || 0;
+  if (currentQty + detailQty > currentProduct.stock) {
+    showToast("Stock maximum atteint pour ce produit.");
+    return;
+  }
+  cart[currentProduct.id] = currentQty + detailQty;
+  updateCartUI();
+  showToast(`${currentProduct.name} (taille ${selectedSize}) ajouté au panier`);
+  closeProductWindows();
+}
+
+// -- Remarque / demande spécifique --
+function saveRemark() {
+  if (!currentProduct) return;
+  remarks[currentProduct.id] = document.getElementById("pwin-note-text").value;
+  showToast("Remarque enregistrée.");
+}
+
+// -- Déplacement (drag) et premier plan des fenêtres de détail --
+(function enablePwinDragging() {
+  document.querySelectorAll(".pwin").forEach(win => {
+    const titlebar = win.querySelector(".pwin-titlebar");
+    let offsetX = 0, offsetY = 0, dragging = false;
+
+    win.addEventListener("mousedown", () => bringPwinToFront(win));
+
+    titlebar.addEventListener("mousedown", (e) => {
+      if (e.target.classList.contains("pwin-close") || e.target.classList.contains("photo-add-btn-bar")) return;
+      dragging = true;
+      const rect = win.getBoundingClientRect();
+      offsetX = e.clientX - rect.left;
+      offsetY = e.clientY - rect.top;
+      bringPwinToFront(win);
+      e.preventDefault();
+    });
+
+    document.addEventListener("mousemove", (e) => {
+      if (!dragging) return;
+      let newLeft = e.clientX - offsetX;
+      let newTop = e.clientY - offsetY;
+      newLeft = Math.max(0, Math.min(newLeft, window.innerWidth - win.offsetWidth));
+      newTop = Math.max(0, Math.min(newTop, window.innerHeight - win.offsetHeight));
+      win.style.left = newLeft + "px";
+      win.style.top = newTop + "px";
+    });
+
+    document.addEventListener("mouseup", () => { dragging = false; });
+  });
+})();
+
+// ---- Démarrage ----
+initCategories();
+renderProducts();
+updateCartUI();
+updateAdminUI();
+</script>
+
+</body>
+</html>
