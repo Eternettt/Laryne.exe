@@ -183,6 +183,8 @@
 </head>
 <body>
 
+<audio id="popup-sound-el" src="popup-sound.mp3" preload="auto"></audio>
+
 <header>
   <h1>Stringz.exe</h1>
   <button id="menu-btn">☰ Menu</button>
@@ -260,7 +262,8 @@
   }
 
   function playPopupSound() {
-    const sound = new Audio('popup-sound.mp3');
+    const base = document.getElementById('popup-sound-el');
+    const sound = base.cloneNode(true);
     sound.play().catch(() => {}); // ignore si le navigateur bloque l'autoplay avant interaction
   }
 
