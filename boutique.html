@@ -447,6 +447,16 @@
     #pwin-size   { top: 33vh; }
     #pwin-cart   { top: 57vh; }
     #pwin-note   { top: 78vh; }
+
+    /* Ces popups ont leur propre largeur fixe (ID plus prioritaire que .pwin
+       ci-dessus) : on la force aussi ici pour ne jamais déborder sur mobile */
+    #pwin-image-menu, #pwin-model-picker, #pwin-new-model, #pwin-admin, #pwin-postit-editor {
+      width: 88vw !important;
+      left: 6vw !important;
+      top: 6vh !important;
+    }
+    #pwin-admin .pwin-body, #pwin-new-model .pwin-body { max-height: 74vh; }
+    .admin-row { flex-wrap: wrap; }
   }
 
   /* ==== Menu "+ Image" (choisir un modèle / en créer un) ==== */

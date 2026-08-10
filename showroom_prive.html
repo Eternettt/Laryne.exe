@@ -437,6 +437,21 @@
     box-shadow: 0 2px 4px rgba(0,0,0,0.3);
   }
   #back-outside-btn:hover { background: linear-gradient(#ffffff, #d8d8d8); }
+
+  /* ================= MOBILE ================= */
+  @media (max-width: 600px) {
+    #quit-btn { top: 10px; right: 10px; padding: 6px 12px; font-size: 12px; }
+    #back-outside-btn { top: 10px; left: 10px; padding: 6px 12px; font-size: 12px; }
+
+    #call-bar { height: 22%; min-height: 90px; }
+    #call-bar .waveform { height: 16px; }
+
+    /* Mannequin et miniatures empilés à la verticale au lieu de côte à côte */
+    #fitting-area { flex-direction: column; padding: 10px; gap: 10px; overflow-y: auto; }
+    #mannequin-frame { flex: none; min-height: 160px; padding: 14px; }
+    #model-strip { flex: none; flex-direction: row; overflow-x: auto; overflow-y: hidden; }
+    .model-thumb { min-width: 80px; height: 70px; }
+  }
 </style>
 </head>
 <body>
