@@ -18,13 +18,20 @@
     position: fixed;
     top: 14px; right: 14px;
     z-index: 500;
-    padding: 7px 14px;
-    background: #f2f2f2;
+    padding: 7px 16px;
+    background: linear-gradient(180deg, #ffffff 0%, #f0f0f0 48%, #dcdcdc 50%, #ffffff 100%);
     color: #7a2350;
-    border: 1px solid #ccc;
-    border-radius: 6px;
-    font-size: 13px;
+    border: 3px solid #4a3242;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: bold;
     cursor: pointer;
+    box-shadow: 0 4px 0 #999, 0 6px 10px rgba(0,0,0,0.25);
+    transition: transform 0.08s ease, box-shadow 0.08s ease;
+  }
+  #quit-btn:active {
+    transform: translateY(3px);
+    box-shadow: 0 1px 0 #999, 0 2px 4px rgba(0,0,0,0.25);
   }
   #quit-btn:hover { background: #fff; }
 
@@ -148,10 +155,16 @@
   .modal-body { padding: 18px; text-align: center; }
   .size-grid, .color-swatch-grid { display: flex; gap: 8px; justify-content: center; margin-top: 12px; flex-wrap: wrap; }
   .size-btn {
-    width: 42px; height: 42px; border-radius: 6px; border: 2px solid #ea8fb8;
-    background: #fff; font-weight: bold; cursor: pointer; color: #7a2350;
+    width: 42px; height: 42px; border-radius: 10px; border: 3px solid #4a3242;
+    background: linear-gradient(180deg, #ffffff 0%, #ffe3f0 48%, #ffc9e2 50%, #ffffff 100%);
+    font-weight: bold; cursor: pointer; color: #7a2350;
+    box-shadow: 0 4px 0 #b5507e, 0 6px 10px rgba(0,0,0,0.25);
+    transition: transform 0.08s ease, box-shadow 0.08s ease;
   }
-  .size-btn:hover { background: #7a2350; color: #fff; }
+  .size-btn:active {
+    transform: translateY(3px);
+    box-shadow: 0 1px 0 #b5507e, 0 2px 4px rgba(0,0,0,0.25);
+  }
   .color-swatch { width: 30px; height: 30px; border-radius: 50%; cursor: pointer; border: 2px solid #fff; box-shadow: 0 0 0 1px #ccc; }
 
   /* ---- décoration ---- */
@@ -188,10 +201,25 @@
   .scroll-hint { text-align: center; font-size: 15px; color: #ea8fb8; margin-top: 4px; }
 
   .btn {
-    padding: 10px 22px; border: none; border-radius: 6px; font-weight: bold; font-size: 14px;
-    cursor: pointer; background: linear-gradient(#c2477a, #7a2350); color: #fff; margin-top: 26px;
+    padding: 11px 26px;
+    border: 3px solid #4a3242;
+    border-radius: 16px;
+    font-weight: bold;
+    font-size: 13px;
+    letter-spacing: 0.3px;
+    cursor: pointer;
+    margin-top: 26px;
+    color: #7a2350;
+    background: linear-gradient(180deg, #ffffff 0%, #ffe3f0 48%, #ffc9e2 50%, #ffffff 100%);
+    box-shadow: 0 5px 0 #b5507e, 0 8px 14px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.9);
+    text-shadow: 0 1px 0 rgba(255,255,255,0.6);
+    transition: transform 0.08s ease, box-shadow 0.08s ease;
   }
-  .btn:hover { background: linear-gradient(#d1588c, #8a2a5c); }
+  .btn:hover { background: linear-gradient(180deg, #ffffff 0%, #ffeef7 48%, #ffd6ea 50%, #ffffff 100%); }
+  .btn:active {
+    transform: translateY(4px);
+    box-shadow: 0 1px 0 #b5507e, 0 2px 4px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.9);
+  }
 
   /* ---- bols extras ---- */
   #bowls-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 18px; max-width: 780px; margin: 0 auto; }
@@ -609,53 +637,71 @@ function openDecorColorPicker(item) {
   document.getElementById('decor-color-modal').classList.add('open');
 }
 function placeDecorOnGarment(item, colorHex) {
-  const target = order.frontDecor.length <= order.backDecor.length ? 'front' : 'back';
-  const list = target === 'front' ? order.frontDecor : order.backDecor;
-  list.push({ ...item, color: colorHex, x: 30 + Math.random() * 40, y: 25 + Math.random() * 50 });
+  const frontCount = order.decor.filter(d => d.side === 'front').length;
+  const backCount = order.decor.filter(d => d.side === 'back').length;
+  const side = frontCount <= backCount ? 'front' : 'back';
+  order.decor.push({ ...item, color: colorHex, side, x: 30 + Math.random() * 40, y: 25 + Math.random() * 50 });
   renderPlacedDecor();
 }
+
 function renderPlacedDecor() {
   ['front', 'back'].forEach(side => {
-    const view = document.getElementById('view-' + side);
-    view.querySelectorAll('.decor-item-placed').forEach(e => e.remove());
-    const list = side === 'front' ? order.frontDecor : order.backDecor;
-    list.forEach(d => {
-      const el = document.createElement('div');
-      el.className = 'decor-item-placed';
-      el.style.left = d.x + '%';
-      el.style.top = d.y + '%';
-      el.textContent = d.icon;
-      view.appendChild(el);
-      makeDecorDraggable(el, d, view);
-    });
+    document.getElementById('view-' + side).querySelectorAll('.decor-item-placed').forEach(e => e.remove());
+  });
+  order.decor.forEach(d => {
+    const view = document.getElementById('view-' + d.side);
+    const el = document.createElement('div');
+    el.className = 'decor-item-placed';
+    el.style.left = d.x + '%';
+    el.style.top = d.y + '%';
+    el.textContent = d.icon;
+    view.appendChild(el);
+    makeDecorDraggable(el, d);
   });
 }
 
-// Clic (ou toucher) et maintien pour déplacer librement un élément posé sur le modèle
-function makeDecorDraggable(el, dataObj, container) {
+// Clic (ou toucher) et maintien pour déplacer librement un élément, y compris
+// d'une vue à l'autre (devant <-> dos), il change alors de côté.
+function makeDecorDraggable(el, dataObj) {
   let dragging = false;
+  const viewFront = document.getElementById('view-front');
+  const viewBack = document.getElementById('view-back');
 
-  function toPercent(clientX, clientY) {
-    const rect = container.getBoundingClientRect();
-    let px = ((clientX - rect.left) / rect.width) * 100;
-    let py = ((clientY - rect.top) / rect.height) * 100;
-    px = Math.max(4, Math.min(96, px));
-    py = Math.max(4, Math.min(96, py));
-    return { px, py };
+  function containerForPoint(clientX, clientY) {
+    for (const view of [viewFront, viewBack]) {
+      const r = view.getBoundingClientRect();
+      if (clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom) return view;
+    }
+    return null;
   }
 
   function startDrag(clientX, clientY) {
     dragging = true;
     el.classList.add('dragging');
   }
+
   function moveDrag(clientX, clientY) {
     if (!dragging) return;
-    const { px, py } = toPercent(clientX, clientY);
+    const hovered = containerForPoint(clientX, clientY);
+    const container = hovered || el.parentElement;
+
+    const newSide = container === viewFront ? 'front' : 'back';
+    if (newSide !== dataObj.side) {
+      dataObj.side = newSide;
+      container.appendChild(el); // passe visuellement de l'autre côté
+    }
+
+    const rect = container.getBoundingClientRect();
+    let px = ((clientX - rect.left) / rect.width) * 100;
+    let py = ((clientY - rect.top) / rect.height) * 100;
+    px = Math.max(4, Math.min(96, px));
+    py = Math.max(4, Math.min(96, py));
     dataObj.x = px;
     dataObj.y = py;
     el.style.left = px + '%';
     el.style.top = py + '%';
   }
+
   function endDrag() {
     dragging = false;
     el.classList.remove('dragging');
@@ -725,7 +771,7 @@ function mixAndShowReceipt() {
 
   if (order.motif) { lines.push({ label: `Motif "${order.motif.name}"`, price: 3 }); total += 3; }
 
-  [...order.frontDecor, ...order.backDecor].forEach(d => { lines.push({ label: `${d.icon} ${d.name}`, price: d.price }); total += d.price; });
+  order.decor.forEach(d => { lines.push({ label: `${d.icon} ${d.name}`, price: d.price }); total += d.price; });
 
   order.extras.forEach(id => {
     const extra = EXTRAS.find(e => e.id === id);
