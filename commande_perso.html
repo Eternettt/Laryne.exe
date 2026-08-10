@@ -241,6 +241,122 @@
 
   #oven-result { display: none; margin-top: 24px; }
   #oven-result.show { display: block; }
+
+  /* ================= CONSOLE DS ================= */
+  #ds-console {
+    display: none;
+    width: 400px;
+    max-width: 94vw;
+    margin: 30px auto;
+    background: linear-gradient(#fbfbfb, #e9e9e9);
+    border-radius: 26px;
+    padding: 18px 20px 26px;
+    box-shadow: 0 22px 44px rgba(0,0,0,0.35), inset 0 1px 0 #fff;
+    position: relative;
+  }
+  #ds-console.open { display: block; }
+
+  #ds-top-screen {
+    background: #0e0e14;
+    border-radius: 10px;
+    border: 7px solid #2b2b33;
+    height: 130px;
+    margin-bottom: 6px;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    text-align: center;
+    padding: 8px;
+  }
+  #ds-top-content { width: 100%; }
+  #ds-top-content .top-banner-text {
+    font-size: 15px;
+    font-weight: bold;
+    color: #ff9ecb;
+    text-shadow: 0 0 8px rgba(255,158,203,0.6);
+  }
+  #ds-top-content .top-sub { font-size: 10px; color: #bbb; margin-top: 4px; }
+
+  .ds-speakers {
+    display: flex;
+    justify-content: center;
+    gap: 5px;
+    margin: 6px 0 10px;
+  }
+  .ds-speakers span { width: 4px; height: 4px; border-radius: 50%; background: #bbb; }
+
+  #ds-bottom-screen {
+    background: #fff;
+    border-radius: 10px;
+    border: 7px solid #2b2b33;
+    min-height: 340px;
+    max-height: 52vh;
+    overflow-y: auto;
+    padding: 14px;
+    position: relative;
+  }
+
+  .ds-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 14px;
+    padding: 0 6px;
+  }
+  .ds-dpad {
+    width: 40px; height: 40px;
+    position: relative;
+  }
+  .ds-dpad::before, .ds-dpad::after {
+    content: '';
+    position: absolute;
+    background: #888;
+    border-radius: 2px;
+  }
+  .ds-dpad::before { width: 14px; height: 40px; left: 13px; }
+  .ds-dpad::after { width: 40px; height: 14px; top: 13px; }
+  .ds-abxy {
+    width: 44px; height: 44px;
+    position: relative;
+  }
+  .ds-abxy span {
+    position: absolute;
+    width: 15px; height: 15px;
+    border-radius: 50%;
+    background: #999;
+    font-size: 8px;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .ds-abxy .a { right: 0; top: 14px; }
+  .ds-abxy .b { right: 14px; top: 28px; }
+  .ds-abxy .x { right: 14px; top: 0; }
+  .ds-abxy .y { right: 28px; top: 14px; }
+
+  /* Dans la console, les écrans internes s'affichent sans le style "plein écran" habituel */
+  #ds-bottom-screen .screen { display: none; max-width: 100%; }
+  #ds-bottom-screen .screen.active { display: block; }
+  #ds-bottom-screen .panel-title { font-size: 15px; margin-bottom: 14px; }
+  #ds-bottom-screen .picker-row { gap: 10px; }
+  #ds-bottom-screen .pantone-card,
+  #ds-bottom-screen .motif-swatch-card { width: 100px; }
+  #ds-bottom-screen .pantone-swatch, #ds-bottom-screen .motif-swatch { height: 60px; }
+  #ds-bottom-screen #shape-grid { grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 10px; }
+  #ds-bottom-screen .shape-card { padding: 10px 6px; }
+  #ds-bottom-screen .shape-card .shape-icon { font-size: 24px; }
+  #ds-bottom-screen .decorate-layout { gap: 10px; }
+  #ds-bottom-screen .undies-view { height: 150px; }
+  #ds-bottom-screen .decor-menu { max-height: 170px; min-width: 160px; }
+  #ds-bottom-screen #bowls-grid { grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 10px; }
+  #ds-bottom-screen .bowl-card { padding: 12px 6px; }
+  #ds-bottom-screen .oven { width: 130px; height: 116px; }
+  #ds-bottom-screen .oven .window { height: 62px; }
+  #ds-bottom-screen #bake-progress-wrap { width: 200px; }
 </style>
 </head>
 <body>
@@ -249,60 +365,70 @@
 
 <main>
 
-  <!-- ================= 1. PANTONE ================= -->
+  <!-- ================= 1. PANTONE (hors console) ================= -->
   <section class="screen active" id="screen-pantone">
     <div class="picker-row" id="pantone-row"></div>
   </section>
 
-  <!-- ================= 2. MOTIF ================= -->
-  <section class="screen" id="screen-motif">
-    <div class="picker-row" id="motif-row"></div>
-  </section>
+  <!-- ================= CONSOLE DS (étapes 2 à 6) ================= -->
+  <div id="ds-console">
+    <div id="ds-top-screen"><div id="ds-top-content"></div></div>
+    <div class="ds-speakers"><span></span><span></span><span></span><span></span><span></span><span></span></div>
 
-  <!-- ================= 3. COOKING MAMA - FORME ================= -->
-  <section class="screen" id="screen-shape">
-    <div class="clock-wrap"><div class="clock"><div class="hand hour"></div><div class="hand minute"></div></div></div>
-    <div id="let-cook-banner">🍳 Cuisines ta culotte !</div>
-    <div id="shape-grid"></div>
-  </section>
+    <div id="ds-bottom-screen">
 
-  <!-- ================= 4. DÉCORATION ================= -->
-  <section class="screen" id="screen-decorate">
-    <div class="panel-title">Décore ta création</div>
-    <div class="decorate-layout">
-      <div class="undies-views">
-        <div class="undies-view" id="view-front"><div class="view-label">Devant</div><div class="undies-shape" id="shape-front"></div></div>
-        <div class="undies-view" id="view-back"><div class="view-label">Dos</div><div class="undies-shape" id="shape-back"></div></div>
-      </div>
-      <div class="decor-menu">
-        <h3>Prints &amp; broderies</h3>
-        <div class="decor-list" id="decor-list"></div>
-        <div class="scroll-hint">▼</div>
-      </div>
+      <!-- 2. MOTIF -->
+      <section class="screen" id="screen-motif">
+        <div class="picker-row" id="motif-row"></div>
+      </section>
+
+      <!-- 3. COOKING MAMA - FORME -->
+      <section class="screen" id="screen-shape">
+        <div id="shape-grid"></div>
+      </section>
+
+      <!-- 4. DÉCORATION -->
+      <section class="screen" id="screen-decorate">
+        <div class="decorate-layout">
+          <div class="undies-views">
+            <div class="undies-view" id="view-front"><div class="view-label">Devant</div><div class="undies-shape" id="shape-front"></div></div>
+            <div class="undies-view" id="view-back"><div class="view-label">Dos</div><div class="undies-shape" id="shape-back"></div></div>
+          </div>
+          <div class="decor-menu">
+            <h3>Prints &amp; broderies</h3>
+            <div class="decor-list" id="decor-list"></div>
+            <div class="scroll-hint">▼</div>
+          </div>
+        </div>
+        <button class="btn" onclick="goTo('bowls')">C'est prêt →</button>
+      </section>
+
+      <!-- 5. BOLS D'EXTRAS -->
+      <section class="screen" id="screen-bowls">
+        <div id="bowls-grid"></div>
+        <div id="special-request-box">
+          <textarea id="special-request-text" placeholder="Ta demande particulière..."></textarea>
+        </div>
+        <button class="btn" onclick="mixAndShowReceipt()">🥣 Mélanger</button>
+      </section>
+
+      <!-- 6. CUISSON -->
+      <section class="screen" id="screen-oven">
+        <div class="oven"><div class="window"><div class="glow"></div></div><div class="knob l"></div><div class="knob r"></div></div>
+        <div id="bake-progress-wrap"><div id="bake-progress"></div></div>
+        <div id="oven-result">
+          <div class="panel-title">🎉 C'est prêt !</div>
+          <button class="btn" onclick="window.location.href='boutique.html'">Retour à la boutique</button>
+        </div>
+      </section>
+
     </div>
-    <button class="btn" onclick="goTo('bowls')">C'est prêt →</button>
-  </section>
 
-  <!-- ================= 5. BOLS D'EXTRAS ================= -->
-  <section class="screen" id="screen-bowls">
-    <div class="panel-title">Mélange les ingrédients</div>
-    <div id="bowls-grid"></div>
-    <div id="special-request-box">
-      <textarea id="special-request-text" placeholder="Ta demande particulière..."></textarea>
+    <div class="ds-controls">
+      <div class="ds-dpad"></div>
+      <div class="ds-abxy"><span class="x">X</span><span class="y">Y</span><span class="a">A</span><span class="b">B</span></div>
     </div>
-    <button class="btn" onclick="mixAndShowReceipt()">🥣 Mélanger</button>
-  </section>
-
-  <!-- ================= 6. CUISSON ================= -->
-  <section class="screen" id="screen-oven">
-    <div class="panel-title" id="oven-title">Ta culotte est en cuisson...</div>
-    <div class="oven"><div class="window"><div class="glow"></div></div><div class="knob l"></div><div class="knob r"></div></div>
-    <div id="bake-progress-wrap"><div id="bake-progress"></div></div>
-    <div id="oven-result">
-      <div class="panel-title">🎉 C'est prêt !</div>
-      <button class="btn" onclick="window.location.href='boutique.html'">Retour à la boutique</button>
-    </div>
-  </section>
+  </div>
 
 </main>
 
@@ -365,9 +491,25 @@ const BASE_PRICE = { string: 24.9, culotte: 29.9, boxer: 32.9, bresilienne: 27.9
 let order = { color: null, motif: null, shape: null, size: null, decor: [], extras: [], specialRequest: '' };
 
 /* ======================= NAVIGATION ======================= */
+const TOP_SCREEN_CONTENT = {
+  motif: '<div class="top-banner-text">🎨 Choisis ton motif</div><div class="top-sub">Touche l\'écran du bas pour sélectionner</div>',
+  shape: '<div class="clock-wrap"><div class="clock"><div class="hand hour"></div><div class="hand minute"></div></div></div><div id="let-cook-banner">🍳 Cuisines ta culotte !</div>',
+  decorate: '<div class="top-banner-text">🎀 Arrange ta création</div><div class="top-sub">Glisse les prints où tu veux</div>',
+  bowls: '<div class="top-banner-text">🥣 Mélange les ingrédients</div><div class="top-sub">Piercings, séquins, rubans...</div>',
+  oven: '<div class="top-banner-text" id="oven-title">Ta culotte est en cuisson...</div>',
+};
+
 function goTo(step) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.getElementById('screen-' + step).classList.add('active');
+  const inConsole = step !== 'pantone';
+  document.getElementById('screen-pantone').classList.toggle('active', step === 'pantone');
+  document.getElementById('ds-console').classList.toggle('open', inConsole);
+
+  if (inConsole) {
+    document.querySelectorAll('#ds-bottom-screen .screen').forEach(s => s.classList.remove('active'));
+    document.getElementById('screen-' + step).classList.add('active');
+    document.getElementById('ds-top-content').innerHTML = TOP_SCREEN_CONTENT[step] || '';
+  }
+
   window.scrollTo({ top: 0, behavior: 'smooth' });
   if (step === 'oven') startBaking();
 }
