@@ -219,6 +219,13 @@
       </form>
     </div>
   </div>
+  <div id="user-panel" style="display:none; text-align:center; padding:20px;">
+    <h2>Bienvenue, <span id="user-name"></span> !</h2>
+    <p>Email : <span id="user-email"></span></p>
+    <p>Role : <span id="user-role"></span></p>
+    <button id="view-purchases-btn" class="submit-btn" style="margin:10px;">Voir mes achats</button>
+    <button id="logout-btn" class="submit-btn" style="margin:10px; background:linear-gradient(#c0392b,#7a1f18);">Se déconnecter</button>
+  </div>
 </main>
 
 <div id="toast"></div>
@@ -256,6 +263,46 @@
   const ADMIN_EMAIL = 'titinoudupre@gmail.com';
   const ADMIN_PASSWORD = '123456';
 
+  // Helper to store user session
+  function storeUserSession(email, name, role) {
+    const userData = {
+      email: email,
+      name: name || email.split('@')[0],
+      role: role // 'admin' or 'user'
+    };
+    localStorage.setItem('stringzUser', JSON.stringify(userData));
+    // also keep admin flag for boutique
+    if (role === 'admin') {
+      localStorage.setItem('stringzAdmin', 'true');
+    } else {
+      localStorage.removeItem('stringzAdmin');
+    }
+  }
+
+  // Helper to clear session
+  function clearUserSession() {
+    localStorage.removeItem('stringzUser');
+    localStorage.removeItem('stringzAdmin');
+  }
+
+  // Helper to load and show user panel if logged in
+  function checkAndShowUserSession() {
+    const userJson = localStorage.getItem('stringzUser');
+    if (userJson) {
+      try {
+        const user = JSON.parse(userJson);
+        document.getElementById('user-name').textContent = user.name;
+        document.getElementById('user-email').textContent = user.email;
+        document.getElementById('user-role').textContent = user.role === 'admin' ? 'Administrateur' : 'Utilisateur';
+        document.getElementById('auth-card').style.display = 'none';
+        document.getElementById('user-panel').style.display = 'block';
+      } catch (e) {
+        console.error('Failed to parse user data', e);
+        clearUserSession();
+      }
+    }
+  }
+
   function handleLogin(event) {
     event.preventDefault();
     const email = document.getElementById('login-email').value.trim();
@@ -272,15 +319,28 @@
       return false;
     }
 
-    // Si c'est le compte admin, on active le mode admin (mémorisé pour la boutique)
+    let role = 'user';
+    let name = '';
+    // Check if admin
     if (email.toLowerCase() === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
-      localStorage.setItem('stringzAdmin', 'true');
+      role = 'admin';
+      name = 'Admin';
       showToast('Connexion admin réussie, bienvenue !');
     } else {
-      localStorage.removeItem('stringzAdmin');
-      showToast('Connexion réussie, bienvenue !');
+      // Check if user exists in our demo registry
+      const userData = registeredUsers[email];
+      if (userData && userData.password === password) {
+        role = 'user';
+        name = userData.name;
+        showToast('Connexion réussie, bienvenue !');
+      } else {
+        showToast('Identifiants incorrects.', true);
+        return false;
+      }
     }
 
+    storeUserSession(email, name, role);
+    // Redirect to home after short delay
     setTimeout(() => { window.location.href = 'index.html'; }, 900);
     return false;
   }
@@ -307,11 +367,46 @@
       return false;
     }
 
+    // Store new user
     registeredUsers[email] = { name, password };
-    showToast('Compte créé, tu peux te connecter !');
-    setTimeout(() => switchTab('login'), 900);
+    // Auto login the newly created account
+    storeUserSession(email, name, 'user');
+    showToast('Compte créé et conecté !');
+    // Go to home
+    setTimeout(() => { window.location.href = 'index.html'; }, 900);
     return false;
   }
+
+  // Logout handler
+  function handleLogout() {
+    clearUserSession();
+    showToast('Vous avez été déconnecté.');
+    // Reset forms
+    document.getElementById('login-form').reset();
+    document.getElementById('signup-form').reset();
+    // Switch back to login tab
+    switchTab('login');
+    // Show auth card, hide user panel
+    document.getElementById('auth-card').style.display = 'block';
+    document.getElementById('user-panel').style.display = 'none';
+  }
+
+  // View purchases placeholder (could redirect to a purchases page)
+  function handleViewPurchases() {
+    // For demo, just show a toast
+    showToast('Feature coming soon: vos achats seront affichés ici.');
+    // Or redirect: window.location.href = 'purchases.html';
+  }
+
+  // Initialize on page load
+  document.addEventListener('DOMContentLoaded', () => {
+    checkAndShowUserSession();
+    // Attach listeners to buttons in user panel (if they exist)
+    const logoutBtn = document.getElementById('logout-btn');
+    if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
+    const viewPurchasesBtn = document.getElementById('view-purchases-btn');
+    if (viewPurchasesBtn) viewPurchasesBtn.addEventListener('click', handleViewPurchases);
+  });
 </script>
 
 </body>
