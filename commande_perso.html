@@ -275,6 +275,18 @@
 
   #oven-result { display: none; margin-top: 24px; }
   #oven-result.show { display: block; }
+  #prep-time-estimate {
+    background: #fdf3f7;
+    border: 1px solid #ea8fb8;
+    border-radius: 8px;
+    padding: 10px 16px;
+    margin: 14px auto 18px;
+    max-width: 320px;
+    font-size: 13px;
+    color: #5a1a38;
+  }
+  #prep-time-estimate .prep-days { font-size: 20px; font-weight: bold; color: #7a2350; display: block; margin-bottom: 2px; }
+  #payment-btn:disabled { opacity: 0.6; cursor: wait; }
 
   /* ================= FOND "CUISINE" DERRIÈRE LA DS ================= */
   #kitchen-bg {
@@ -462,80 +474,6 @@
     .size-btn { width: 46px; height: 46px; }
     #receipt { width: 100%; }
   }
-/* Mobile/touch improvements */
-* { -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; -webkit-user-select: none; -khtml-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none; }
-button, .btn, .size-btn, .ds-abxy span, .ds-dpad, #quit-btn, .modal-overlay .x {
-    min-height: 48px;
-    min-width: 48px;
-    touch-action: manipulation;
-}
-
-/* Ensure clickable areas are large enough */
-.pantone-card, .motif-swatch-card, .shape-card, .bowl-card, .decor-choice, .modal-overlay .x {
-    min-height: 48px;
-    min-width: 48px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-}
-
-/* Improve tap feedback */
-:active {
-    opacity: 0.8;
-}
-
-/* Mobile-specific adjustments */
-@media (max-width: 600px) {
-    #quit-btn { top: 10px; right: 10px; padding: 8px 14px; font-size: 12px; min-width: 50px; min-height: 50px; }
-    main { padding: 56px 12px 40px; }
-
-    .picker-row { gap: 12px; }
-    .pantone-card { width: 42vw; max-width: 140px; min-height: 50px; }
-    .motif-swatch-card { width: 42vw; max-width: 130px; min-height: 50px; }
-
-    #ds-console { padding: 16px 14px 24px; margin: 20px auto; border-radius: 24px; }
-    #ds-top-screen { height: 120px; border-width: 6px; }
-    #ds-bottom-screen { border-width: 6px; padding: 12px; max-height: none; }
-
-    /* Devant/dos empilés à la verticale = zone plus grande pour bouger les emojis au doigt */
-    #ds-bottom-screen .decorate-layout { flex-direction: column; }
-    #ds-bottom-screen .undies-views { flex-direction: row; width: 100%; }
-    #ds-bottom-screen .undies-view { height: 180px; }
-    #ds-bottom-screen .decor-menu { width: 100%; min-width: 0; max-height: 160px; }
-    #ds-bottom-screen .decor-list { grid-template-columns: repeat(5, 1fr); }
-    #ds-bottom-screen .decor-choice { font-size: 18px; padding: 10px 2px; min-height: 50px; }
-
-    #ds-bottom-screen #shape-grid { grid-template-columns: repeat(2, 1fr); }
-    #ds-bottom-screen #bowls-grid { grid-template-columns: repeat(2, 1fr); }
-
-    .ds-controls { margin-top: 16px; }
-
-    /* Make DS controls thumb-friendly on mobile */
-    .ds-dpad {
-        width: 56px !important;
-        height: 56px !important;
-    }
-    .ds-dpad::before { width: 20px; height: 56px; left: 18px; }
-    .ds-dpad::after { width: 56px; height: 20px; top: 18px; }
-
-    .ds-abxy {
-        width: 60px !important;
-        height: 60px !important;
-    }
-    .ds-abxy span {
-        width: 22px !important;
-        height: 22px !important;
-        font-size: 10px !important;
-    }
-    .ds-abxy .a { right: 0; top: 19px; }
-    .ds-abxy .b { right: 19px; top: 38px; }
-    .ds-abxy .x { right: 19px; top: 0; }
-    .ds-abxy .y { right: 38px; top: 19px; }
-
-    .btn { width: 100%; padding: 14px 20px; font-size: 15px; min-height: 50px; }
-    .size-btn { width: 50px; height: 50px; font-size: 14px; }
-    #receipt { width: 100%; }
-}
 
 </style>
 </head>
@@ -609,7 +547,8 @@ button, .btn, .size-btn, .ds-abxy span, .ds-dpad, #quit-btn, .modal-overlay .x {
         <div id="bake-progress-wrap"><div id="bake-progress"></div></div>
         <div id="oven-result">
           <div class="panel-title">🎉 C'est prêt !</div>
-          <button class="btn" onclick="window.location.href='boutique.html'">Retour à la boutique</button>
+          <div id="prep-time-estimate"></div>
+          <button class="btn" id="payment-btn" onclick="goToPayment()">💳 Passer au paiement</button>
         </div>
       </section>
 
@@ -972,6 +911,16 @@ function playCashSound() {
 }
 function shapeName(id) { const s = SHAPES.find(x => x.id === id); return s ? s.name : 'Création'; }
 
+// Estimation du délai de préparation : base + complexité (déco, extras, demande spéciale)
+function estimatePrepTime() {
+  let days = 3; // délai de base pour une pièce sur mesure
+  days += Math.ceil(order.decor.length / 3); // chaque groupe de 3 déco ajoute un jour
+  const nonSpecialExtras = order.extras.filter(id => id !== 'special');
+  if (nonSpecialExtras.length > 0) days += 1;
+  if (order.extras.includes('special') && order.specialRequest) days += 2;
+  return { min: days, max: days + 2 };
+}
+
 function mixAndShowReceipt() {
   order.specialRequest = document.getElementById('special-request-text').value.trim();
   const lines = [];
@@ -1008,6 +957,7 @@ function mixAndShowReceipt() {
   `;
   document.getElementById('receipt-overlay').classList.add('open');
   playCashSound();
+  order.total = total;
 }
 document.getElementById('receipt').addEventListener('click', () => {
   document.getElementById('receipt-overlay').classList.remove('open');
@@ -1026,9 +976,45 @@ function startBaking() {
     if (pct >= 100) {
       clearInterval(interval);
       document.getElementById('oven-title').textContent = 'Ta culotte est prête !';
+
+      const est = estimatePrepTime();
+      document.getElementById('prep-time-estimate').innerHTML =
+        `<span class="prep-days">${est.min} à ${est.max} jours ouvrés</span>Temps de préparation estimé avant expédition`;
+
       document.getElementById('oven-result').classList.add('show');
     }
   }, 120);
+}
+
+// Envoie la commande personnalisée vers la vraie page de paiement (Stripe),
+// exactement comme le panier de la boutique — pas de raccourci vers success.html.
+async function goToPayment() {
+  const btn = document.getElementById('payment-btn');
+  btn.disabled = true;
+  btn.textContent = 'Redirection vers le paiement...';
+
+  try {
+    const response = await fetch('/api/create-checkout-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        customItem: {
+          name: `Création sur mesure — ${shapeName(order.shape)} (taille ${order.size || '-'})`,
+          unitAmount: Math.round((order.total || 0) * 100), // Stripe attend des centimes
+        },
+      }),
+    });
+
+    if (!response.ok) throw new Error('Erreur lors de la création du paiement.');
+
+    const data = await response.json();
+    window.location.href = data.url; // vraie page de paiement Stripe
+  } catch (err) {
+    console.error(err);
+    alert("Le paiement n'a pas pu être initié. Réessaie plus tard.");
+    btn.disabled = false;
+    btn.textContent = '💳 Passer au paiement';
+  }
 }
 
 /* ======================= INIT ======================= */
