@@ -258,6 +258,27 @@
   </div>
 </div>
 
+<div class="vista-window" id="popup6">
+  <div class="vista-titlebar">
+    <span class="vista-title">🛠 Admin</span>
+    <div class="vista-close" data-target="popup6">✕</div>
+  </div>
+  <div class="vista-body">
+    <img src="" alt="icone6">
+    <a href="admin.html" class="vista-link">Gérer stocks / icônes / images</a>
+  </div>
+</div>
+
+<script src="shared-data.js"></script>
+<script>
+  // Le popup Admin n'existe que pour les administrateurs : on le retire
+  // complètement du DOM sinon, AVANT que le script principal ne liste les
+  // popups (pour ne pas fausser le calcul d'ouverture/tri/positionnement).
+  if (!stringzIsAdmin()) {
+    document.getElementById('popup6').remove();
+  }
+</script>
+
 <script>
   const popups = document.querySelectorAll('.vista-window');
   const menuBtn = document.getElementById('menu-btn');

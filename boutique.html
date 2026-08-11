@@ -584,6 +584,22 @@
     flex-direction: column;
     flex: 1;
   }
+  .product-icon-badge {
+    position: absolute;
+    top: -6px;
+    left: -6px;
+    width: 26px;
+    height: 26px;
+    background: #fff;
+    border: 2px solid #ea8fb8;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.25);
+    z-index: 3;
+  }
 
   /* ==== Popup "Personnaliser le post-it" (sprite / taille / orientation) ==== */
   #pwin-postit-editor { width: 400px; }
@@ -863,18 +879,12 @@
   </div>
 </div>
 
+<script src="shared-data.js"></script>
 <script>
-// ---- Données produits (remplace par tes vrais produits / API) ----
-const products = [
-  { id: 1, name: "String 1", category: "String", price: 89.99, stock: 12, img: "https://placehold.co/300x200?text=String 1" },
-  { id: 2, name: "Culotte 1", category: "Culotte", price: 149.00, stock: 5, img: "https://placehold.co/300x200?text=Culotte 1" },
-  { id: 3, name: "String 2", category: "String", price: 65.50, stock: 0, img: "https://placehold.co/300x200?text=String 2" },
-  { id: 4, name: "Caleçon 1", category: "Caleçon", price: 210.00, stock: 8, img: "https://placehold.co/300x200?text=Caleçon 1" },
-  { id: 5, name: "Culotte 2", category: "Culotte", price: 34.90, stock: 20, img: "https://placehold.co/300x200?text=Culotte 2" },
-  { id: 6, name: "String 3", category: "String", price: 79.00, stock: 3, img: "https://placehold.co/300x200?text=String 3" },
-  { id: 7, name: "String 4", category: "String", price: 29.90, stock: 15, img: "https://placehold.co/300x200?text=String 4" },
-  { id: 8, name: "String 5", category: "String", price: 249.00, stock: 6, img: "https://placehold.co/300x200?text=String 5" },
-];
+// ---- Données produits : chargées depuis le stockage partagé du site ----
+// (modifiables depuis admin.html ou le panneau Gestion ci-dessous ;
+//  toute modification est visible sur tout le site après rechargement)
+let products = stringzLoadProducts();
 
 let cart = {}; // { productId: quantity }
 
@@ -920,6 +930,7 @@ const POSTIT_MAX = 260;
 
 function productContentHTML(p, stockClass, stockLabel) {
   return `
+    ${p.icon ? `<div class="product-icon-badge">${p.icon}</div>` : ""}
     <img src="${(p.images && p.images[0]) || p.img}" alt="${p.name}">
     <h3>${p.name}</h3>
     <div class="cat">${p.category}</div>
@@ -1006,6 +1017,10 @@ function dropCard(card) {
 }
 
 function renderProducts() {
+  // Persiste l'état courant : rend les modifications visibles sur tout le
+  // site (admin.html, autres onglets...) sans action supplémentaire.
+  stringzSaveProducts(products);
+
   const search = document.getElementById("search").value.toLowerCase();
   const category = document.getElementById("category-filter").value;
   const sort = document.getElementById("sort").value;
@@ -1322,7 +1337,7 @@ const MENU_PWIN_IDS = ["pwin-image-menu", "pwin-model-picker", "pwin-new-model"]
 // Mets 1 pour forcer le mode admin depuis le code, 0 sinon.
 // Se connecter en tant qu'admin depuis connexion.html fonctionne aussi (indépendamment de ce réglage).
 const ADMIN_MODE = 0;
-let isAdmin = ADMIN_MODE === 1 || localStorage.getItem("stringzAdmin") === "true";
+let isAdmin = ADMIN_MODE === 1 || stringzIsAdmin();
 
 function updateAdminUI() {
   document.getElementById("header-admin-btn").style.display = isAdmin ? "inline-block" : "none";
@@ -1742,6 +1757,16 @@ initCategories();
 renderProducts();
 updateCartUI();
 updateAdminUI();
+
+// Si les produits sont modifiés ailleurs (admin.html, un autre onglet...),
+// on recharge et on réaffiche automatiquement, sans avoir à rafraîchir la page.
+stringzOnProductsChanged(() => {
+  products = stringzLoadProducts();
+  renderProducts();
+  if (isAdmin && document.getElementById("pwin-admin").classList.contains("open")) {
+    renderAdminList();
+  }
+});
 </script>
 
 </body>

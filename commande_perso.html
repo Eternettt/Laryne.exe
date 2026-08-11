@@ -71,6 +71,12 @@
     transition: transform 0.15s ease, box-shadow 0.15s ease;
   }
   .pantone-card:hover { transform: translateY(-6px); box-shadow: 0 14px 26px rgba(0,0,0,0.22); }
+  .pantone-card.falling {
+    transition: transform 0.6s cubic-bezier(.55,0,1,.45), opacity 0.4s ease 0.2s;
+    transform: translate(var(--fall-x, 0px), 520px) rotate(var(--fall-rot, 60deg)) !important;
+    opacity: 0;
+    pointer-events: none;
+  }
   .pantone-swatch { width: 100%; height: 90px; margin-bottom: 8px; }
   .pantone-code { font-weight: bold; font-size: 12px; color: #111; }
   .pantone-name { font-size: 10px; color: #555; }
@@ -270,6 +276,45 @@
   #oven-result { display: none; margin-top: 24px; }
   #oven-result.show { display: block; }
 
+  /* ================= FOND "CUISINE" DERRIÈRE LA DS ================= */
+  #kitchen-bg {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    background: #e8d3b0 url('cuisine.webp') center / cover no-repeat;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+  }
+  #kitchen-bg.visible { opacity: 1; }
+  main { position: relative; z-index: 1; }
+
+  /* ================= RIDEAU DE THÉÂTRE ================= */
+  #curtain-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 600;
+    display: none;
+    pointer-events: none;
+  }
+  .curtain-panel {
+    position: absolute;
+    top: 0; bottom: 0;
+    width: 52vw;
+    transition: transform 0.65s cubic-bezier(.76,0,.24,1);
+    overflow: hidden;
+  }
+  .curtain-panel.left { left: 0; transform: translateX(0); }
+  .curtain-panel.right { right: 0; transform: translateX(0); }
+  #curtain-overlay.open .curtain-panel.left { transform: translateX(-100%); }
+  #curtain-overlay.open .curtain-panel.right { transform: translateX(100%); }
+
+  /* Étoffe du rideau : blanc pur, sans aucun autre effet */
+  .curtain-fabric {
+    position: absolute;
+    inset: 0;
+    background: #ffffff;
+  }
+
   /* ================= CONSOLE DS ================= */
   #ds-console {
     display: none;
@@ -420,6 +465,17 @@
 </style>
 </head>
 <body>
+
+<div id="kitchen-bg"></div>
+
+<div id="curtain-overlay">
+  <div class="curtain-panel left">
+    <div class="curtain-fabric"></div>
+  </div>
+  <div class="curtain-panel right">
+    <div class="curtain-fabric"></div>
+  </div>
+</div>
 
 <button id="quit-btn" onclick="window.location.href='index.html'">✕ Quitter</button>
 
@@ -578,13 +634,62 @@ function goTo(step) {
 function renderPantoneRow() {
   const row = document.getElementById('pantone-row');
   row.innerHTML = '';
+
+  // Les 3 couleurs du nuancier servent aussi de couleurs de rideau
+  document.documentElement.style.setProperty('--c1', PANTONES[0].hex);
+  document.documentElement.style.setProperty('--c2', PANTONES[1].hex);
+  document.documentElement.style.setProperty('--c3', PANTONES[2].hex);
+
   PANTONES.forEach(c => {
     const card = document.createElement('div');
     card.className = 'pantone-card';
     card.innerHTML = `<div class="pantone-swatch" style="background:${c.hex};"></div><div class="pantone-code">PANTONE®</div><div class="pantone-code">${c.code}</div><div class="pantone-name">${c.name}</div>`;
-    card.onclick = () => { order.color = c; goTo('motif'); };
+    card.onclick = () => dropPantoneCardsThenReveal(c);
     row.appendChild(card);
   });
+}
+
+// Fait tomber les 3 cartes pantone (même animation que les post-its de la
+// boutique), puis enchaîne sur l'ouverture du rideau blanc.
+function dropPantoneCardsThenReveal(c) {
+  order.color = c;
+
+  document.querySelectorAll('#pantone-row .pantone-card').forEach(card => {
+    const dx = Math.round(Math.random() * 200 - 100);
+    const rot = Math.round(Math.random() * 160 - 80);
+    card.style.setProperty('--fall-x', dx + 'px');
+    card.style.setProperty('--fall-rot', rot + 'deg');
+    card.classList.add('falling');
+  });
+
+  setTimeout(() => openCurtainToDS(), 650);
+}
+
+// Effet rideau : la page (maintenant blanche) se divise en deux et s'ouvre
+// en un seul mouvement pour laisser apparaître la DS derrière.
+function openCurtainToDS() {
+  const overlay = document.getElementById('curtain-overlay');
+  const panels = overlay.querySelectorAll('.curtain-panel');
+
+  // 1) Affiche le rideau instantanément (sans transition) : il recouvre
+  //    l'écran à l'identique de ce qui est déjà affiché, aucun à-coup visible.
+  overlay.classList.remove('open');
+  panels.forEach(p => { p.style.transition = 'none'; });
+  overlay.style.display = 'block';
+  void overlay.offsetWidth; // force le navigateur à appliquer l'état ci-dessus avant la suite
+
+  // 2) Change la scène juste derrière, invisible car cachée par le rideau
+  document.getElementById('kitchen-bg').classList.add('visible');
+  goTo('motif');
+
+  // 3) Réactive la transition puis ouvre le rideau en un seul mouvement (pas de va-et-vient)
+  requestAnimationFrame(() => {
+    panels.forEach(p => { p.style.transition = ''; });
+    requestAnimationFrame(() => overlay.classList.add('open'));
+  });
+
+  // 4) Retire le rideau une fois l'ouverture terminée
+  setTimeout(() => { overlay.style.display = 'none'; }, 750);
 }
 
 /* ======================= 2. MOTIF (1 clic = étape suivante) ======================= */
