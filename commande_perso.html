@@ -462,6 +462,28 @@
     .size-btn { width: 46px; height: 46px; }
     #receipt { width: 100%; }
   }
+/* Mobile/touch improvements */
+* { -webkit-tap-highlight-color: transparent; }
+button, .btn, .size-btn, .ds-abxy span, .ds-dpad, #quit-btn {
+    min-height: 44px;
+    min-width: 44px;
+    touch-action: manipulation;
+}
+
+/* Ensure clickable areas are large enough */
+.pantone-card, .motif-swatch-card, .shape-card, .bowl-card, .decor-choice {
+    min-height: 48px;
+    min-width: 48px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Improve tap feedback */
+:active {
+    opacity: 0.8;
+}
+
 </style>
 </head>
 <body>
