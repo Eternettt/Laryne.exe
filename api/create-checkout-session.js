@@ -1,19 +1,15 @@
 // Fonction serverless Vercel : /api/create-checkout-session
-// Reçoit le panier depuis le navigateur, crée une session de paiement Stripe
-// AVEC LA CLÉ SECRÈTE (jamais exposée au client), et renvoie l'URL vers
-// laquelle rediriger l'utilisateur pour payer.
+// Reçoit soit un panier boutique (cart), soit une création personnalisée
+// (customItem, depuis commande_perso.html), crée une session de paiement
+// Stripe AVEC LA CLÉ SECRÈTE (jamais exposée au client), et renvoie l'URL
+// vers laquelle rediriger l'utilisateur pour payer.
 
 const Stripe = require('stripe');
 const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 
-// Source de vérité des produits, CÔTÉ SERVEUR.
-// ⚠️ Ne fais JAMAIS confiance aux prix envoyés par le navigateur : un
-// utilisateur malveillant pourrait les modifier avant l'envoi. On ne
-// reçoit du client que les IDs + quantités, et on va chercher le vrai
-// prix ici.
-//
-// Pour l'instant cette liste est dupliquée à la main depuis boutique.html.
-// Idéalement, remplace-la par un vrai appel à ta base de données/CMS.
+// Source de vérité des produits, CÔTÉ SERVEUR, pour le panier boutique.
+// ⚠️ Ne fais JAMAIS confiance aux prix envoyés par le navigateur.
+// Idéalement, remplace cette liste par un vrai appel à ta base de données.
 const PRODUCTS = {
   1: { name: "String 1", price: 89.99 },
   2: { name: "Culotte 1", price: 149.00 },
@@ -32,26 +28,48 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const { cart } = req.body; // { "1": 2, "4": 1, ... }
+    const { cart, customItem } = req.body;
+    let line_items;
 
-    if (!cart || Object.keys(cart).length === 0) {
-      res.status(400).json({ error: 'Panier vide' });
-      return;
-    }
-
-    const line_items = Object.entries(cart).map(([id, qty]) => {
-      const product = PRODUCTS[id];
-      if (!product) throw new Error(`Produit inconnu: ${id}`);
-
-      return {
+    if (customItem) {
+      // ---- Création personnalisée (commande_perso.html) ----
+      // ⚠️ Ici le prix vient bien du navigateur (calculé selon les choix de
+      // l'utilisateur : forme, déco, extras...). Pour une vraie mise en
+      // production, recalcule ce total côté serveur à partir des mêmes
+      // règles de prix que commande_perso.html, plutôt que de faire
+      // confiance à `unitAmount` tel quel.
+      const amount = Math.round(Number(customItem.unitAmount));
+      if (!amount || amount <= 0) {
+        res.status(400).json({ error: 'Montant invalide' });
+        return;
+      }
+      line_items = [{
         price_data: {
           currency: 'eur',
-          product_data: { name: product.name },
-          unit_amount: Math.round(product.price * 100), // Stripe attend des centimes
+          product_data: { name: customItem.name || 'Création personnalisée Stringz.exe' },
+          unit_amount: amount,
         },
-        quantity: qty,
-      };
-    });
+        quantity: 1,
+      }];
+    } else {
+      // ---- Panier boutique classique ----
+      if (!cart || Object.keys(cart).length === 0) {
+        res.status(400).json({ error: 'Panier vide' });
+        return;
+      }
+      line_items = Object.entries(cart).map(([id, qty]) => {
+        const product = PRODUCTS[id];
+        if (!product) throw new Error(`Produit inconnu: ${id}`);
+        return {
+          price_data: {
+            currency: 'eur',
+            product_data: { name: product.name },
+            unit_amount: Math.round(product.price * 100),
+          },
+          quantity: qty,
+        };
+      });
+    }
 
     const origin = req.headers.origin || `https://${req.headers.host}`;
 
@@ -60,7 +78,7 @@ module.exports = async (req, res) => {
       payment_method_types: ['card'],
       line_items,
       success_url: `${origin}/success.html?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}/boutique.html`,
+      cancel_url: `${origin}/${customItem ? 'commande_perso.html' : 'boutique.html'}`,
     });
 
     res.status(200).json({ url: session.url });
