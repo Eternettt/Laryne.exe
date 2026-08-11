@@ -1005,13 +1005,16 @@ async function goToPayment() {
       }),
     });
 
-    if (!response.ok) throw new Error('Erreur lors de la création du paiement.');
+    const data = await response.json().catch(() => ({}));
 
-    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || `Erreur serveur (${response.status})`);
+    }
+
     window.location.href = data.url; // vraie page de paiement Stripe
   } catch (err) {
     console.error(err);
-    alert("Le paiement n'a pas pu être initié. Réessaie plus tard.");
+    alert("Le paiement n'a pas pu être initié :\n" + err.message);
     btn.disabled = false;
     btn.textContent = '💳 Passer au paiement';
   }
