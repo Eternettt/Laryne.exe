@@ -510,7 +510,7 @@
      s'est déjà connecté en admin auparavant (voir shared-data.js) -->
 <div id="admin-welcome-overlay">
   <div id="admin-welcome-card">
-    <h2>Heureux de vous revoir 👋</h2>
+    <h2>Heureux de vous revoir <span id="admin-welcome-name"></span> 👋</h2>
     <p>Entrez votre code admin pour accéder au site en tant qu'administrateur.</p>
     <input type="password" id="admin-welcome-code" placeholder="Code admin" autocomplete="current-password">
     <div id="admin-welcome-error">Code incorrect.</div>
@@ -669,6 +669,8 @@
     const alreadyAnswered = sessionStorage.getItem('stringzAdminPromptDone') === 'true';
 
     if (stringzWasAdminBefore() && !stringzIsAdmin() && !alreadyAnswered) {
+      const nameEl = document.getElementById('admin-welcome-name');
+      if (nameEl) nameEl.textContent = STRINGZ_ADMIN_NAME;
       overlay.classList.add('show');
       codeInput.focus();
 
@@ -702,6 +704,13 @@
 
 <script>
   const popups = document.querySelectorAll('.vista-window');
+  // Toujours interroger le DOM à nouveau ici : popup6 (Admin) peut être retiré
+  // dynamiquement (bouton "Continuer en tant qu'utilisateur"), et la NodeList
+  // `popups` ci-dessus reste figée sur l'état du DOM au moment du chargement.
+  // Sans ça, un popup retiré continuait à être compté (et donc à jouer son son).
+  function getPopups() {
+    return document.querySelectorAll('.vista-window');
+  }
   const menuBtn = document.getElementById('menu-btn');
   const headerEl = document.querySelector('header');
   let spawnTimeouts = [];
@@ -718,7 +727,7 @@
   }
 
   function anyOpen() {
-    return Array.from(popups).some(p => p.classList.contains('open'));
+    return Array.from(getPopups()).some(p => p.classList.contains('open'));
   }
 
   function spawnPopup(win, width, height, finalLeft, finalTop, rot = 0) {
@@ -775,7 +784,7 @@
     const minWidth = 120;
     const minHeight = 100;
 
-    return Array.from(popups).map((win, i) => {
+    return Array.from(getPopups()).map((win, i) => {
       const preset = mobileLayoutPreset[i % mobileLayoutPreset.length];
 
       let width = Math.round(availableWidth * preset.wF);
@@ -803,7 +812,7 @@
 
     const placedRects = [];
 
-    return Array.from(popups).map(win => {
+    return Array.from(getPopups()).map(win => {
       const topLimit = getTopLimit();
       const availableHeight = Math.max(100, window.innerHeight - topLimit);
       const availableWidth = window.innerWidth;
@@ -883,7 +892,7 @@
     // Annule toutes les apparitions encore programmées (pas encore sorties)
     spawnTimeouts.forEach(id => clearTimeout(id));
     spawnTimeouts = [];
-    popups.forEach(p => p.classList.remove('open'));
+    getPopups().forEach(p => p.classList.remove('open'));
   }
 
   menuBtn.addEventListener('click', () => {
@@ -1010,7 +1019,7 @@
   }
 
   function clampAllPopups() {
-    popups.forEach(win => clampToViewport(win));
+    getPopups().forEach(win => clampToViewport(win));
   }
 
   window.addEventListener('resize', clampAllPopups);

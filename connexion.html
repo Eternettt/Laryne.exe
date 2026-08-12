@@ -195,9 +195,9 @@
     <div class="panel" id="panel-signup">
       <form id="signup-form" novalidate onsubmit="return handleSignup(event)">
         <div class="field" id="signup-name-field">
-          <label for="signup-name">Nom / pseudo</label>
-          <input type="text" id="signup-name" placeholder="Ton nom" autocomplete="name">
-          <div class="error">Merci d'entrer un nom.</div>
+          <label for="signup-name">Pseudo</label>
+          <input type="text" id="signup-name" placeholder="Ton pseudo" autocomplete="name">
+          <div class="error">Merci d'entrer un pseudo.</div>
         </div>
         <div class="field" id="signup-email-field">
           <label for="signup-email">Adresse e-mail</label>
@@ -331,7 +331,7 @@
     // Check if admin
     if (email.toLowerCase() === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
       role = 'admin';
-      name = 'Admin';
+      name = STRINGZ_ADMIN_NAME;
       showToast('Connexion admin réussie, bienvenue !');
     } else {
       // Check if user exists in our demo registry

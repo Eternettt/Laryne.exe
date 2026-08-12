@@ -66,6 +66,8 @@ function stringzSetAdmin(value) {
 // rapide "Heureux de vous revoir") ----
 const STRINGZ_ADMIN_EMAIL = 'titinoudupre@gmail.com';
 const STRINGZ_ADMIN_PASSWORD = '123456';
+// Pseudo affiché pour le compte admin (écran "Heureux de vous revoir", etc.)
+const STRINGZ_ADMIN_NAME = 'eternett';
 
 // ---- "A déjà été admin sur cet appareil" ----
 // Contrairement à STRINGZ_ADMIN_KEY (sessionStorage, vidé à la fermeture de
