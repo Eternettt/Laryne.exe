@@ -359,8 +359,13 @@
       let width = Math.round(Math.sqrt(targetArea * aspect));
       let height = Math.round(Math.sqrt(targetArea / aspect));
 
-      width = Math.min(Math.max(170, width), availableWidth);
-      height = Math.min(Math.max(130, height), availableHeight);
+      // Adjust minimum sizes for mobile devices to ensure popups fit on small screens
+      const isMobile = window.innerWidth < 600;
+      const minWidth = isMobile ? 120 : 170;
+      const minHeight = isMobile ? 100 : 130;
+
+      width = Math.min(Math.max(minWidth, width), availableWidth);
+      height = Math.min(Math.max(minHeight, height), availableHeight);
 
       const maxLeft = Math.max(0, window.innerWidth - width);
       const maxTop = Math.max(topLimit, window.innerHeight - height);
