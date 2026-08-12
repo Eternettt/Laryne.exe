@@ -166,6 +166,35 @@
   }
   .add-image-btn:hover { background: #fdeaf2; }
 
+  #diapo-btn {
+    display: block;
+    width: 100%;
+    padding: 12px;
+    margin-bottom: 20px;
+    background: #fdf3f7;
+    color: #7a2350;
+    border: 1px solid #ea8fb8;
+    border-radius: 8px;
+    font-weight: bold;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  #diapo-btn:hover { background: #fdeaf2; }
+
+  .replace-img {
+    position: absolute;
+    bottom: -6px;
+    right: -6px;
+    width: 18px; height: 18px;
+    background: #7a2350; color: #fff;
+    border-radius: 50%;
+    font-size: 9px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    border: 1px solid #fff;
+  }
+  .diapo-empty-note { font-size: 12px; color: #b06084; margin-bottom: 10px; }
+
   .model-actions { display: flex; flex-direction: column; gap: 6px; justify-content: center; }
   .model-actions button {
     padding: 7px 10px;
@@ -221,6 +250,7 @@
     </div>
 
     <button id="add-model-btn" onclick="createNewModel()">➕ Ajouter un nouveau modèle</button>
+    <button id="diapo-btn" onclick="openDiapoModal()">🖼️ Gérer le diaporama de l'accueil</button>
 
     <div id="models-list"></div>
   </div>
@@ -231,6 +261,20 @@
     <div class="modal-titlebar"><span>Choisir une icône</span><span class="x" onclick="closeIconModal()">✕</span></div>
     <div class="modal-body">
       <div class="icon-grid" id="icon-grid"></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="diapo-modal">
+  <div class="modal-box" style="width: 420px;">
+    <div class="modal-titlebar"><span>Diaporama de l'accueil</span><span class="x" onclick="closeDiapoModal()">✕</span></div>
+    <div class="modal-body">
+      <div class="diapo-empty-note">🔄 remplace une photo — ✕ la supprime.</div>
+      <div class="image-thumbs" id="diapo-thumbs"></div>
+      <label class="add-image-btn">
+        📁 Ajouter une photo
+        <input type="file" accept="image/*" style="display:none;" onchange="addDiapoImage(event)">
+      </label>
     </div>
   </div>
 </div>
@@ -405,6 +449,86 @@
     renderModels();
     showToast('Nouveau modèle ajouté ✓');
   }
+
+  // ==================== Diaporama de l'accueil ====================
+  let diapoPhotos = [];
+
+  function openDiapoModal() {
+    diapoPhotos = stringzLoadDiapo();
+    renderDiapoThumbs();
+    document.getElementById('diapo-modal').classList.add('open');
+  }
+  function closeDiapoModal() {
+    document.getElementById('diapo-modal').classList.remove('open');
+  }
+
+  function persistDiapo() {
+    stringzSaveDiapo(diapoPhotos);
+    showToast('Diaporama enregistré ✓');
+  }
+
+  function renderDiapoThumbs() {
+    const container = document.getElementById('diapo-thumbs');
+    if (!diapoPhotos.length) {
+      container.innerHTML = '<div class="diapo-empty-note">Aucune photo pour le moment.</div>';
+      return;
+    }
+    container.innerHTML = diapoPhotos.map((src, i) => `
+      <div class="image-thumb">
+        <img src="${src}" alt="">
+        <div class="del-img" title="Supprimer" onclick="deleteDiapoImage(${i})">✕</div>
+        <label class="replace-img" title="Remplacer">
+          🔄
+          <input type="file" accept="image/*" style="display:none;" onchange="replaceDiapoImage(${i}, event)">
+        </label>
+      </div>
+    `).join('');
+  }
+
+  function addDiapoImage(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      diapoPhotos.push(e.target.result);
+      persistDiapo();
+      renderDiapoThumbs();
+    };
+    reader.readAsDataURL(file);
+    event.target.value = '';
+  }
+
+  function replaceDiapoImage(index, event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      diapoPhotos[index] = e.target.result;
+      persistDiapo();
+      renderDiapoThumbs();
+    };
+    reader.readAsDataURL(file);
+    event.target.value = '';
+  }
+
+  function deleteDiapoImage(index) {
+    if (diapoPhotos.length <= 1) {
+      showToast('Il faut garder au moins une photo');
+      return;
+    }
+    if (!confirm('Supprimer cette photo du diaporama ?')) return;
+    diapoPhotos.splice(index, 1);
+    persistDiapo();
+    renderDiapoThumbs();
+  }
+
+  // Se met à jour si modifié depuis un autre onglet
+  stringzOnDiapoChanged(() => {
+    diapoPhotos = stringzLoadDiapo();
+    if (document.getElementById('diapo-modal').classList.contains('open')) {
+      renderDiapoThumbs();
+    }
+  });
 
   // ---- Démarrage ----
   if (checkAccess()) {

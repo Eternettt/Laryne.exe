@@ -63,3 +63,40 @@ function stringzOnProductsChanged(callback) {
     if (e.key === STRINGZ_PRODUCTS_KEY) callback();
   });
 }
+
+/* ==========================================================================
+   Diaporama de la page d'accueil (carré photo qui défile + lightbox)
+   ========================================================================== */
+
+const STRINGZ_DIAPO_KEY = 'stringzDiapoV1';
+
+const STRINGZ_DEFAULT_DIAPO = ['photo1.jpg', 'photo2.jpg', 'photo3.jpg'];
+
+// ---- Charge les photos du diaporama (localStorage si présent, sinon valeurs par défaut) ----
+function stringzLoadDiapo() {
+  try {
+    const raw = localStorage.getItem(STRINGZ_DIAPO_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length) return parsed;
+    }
+  } catch (e) { /* localStorage indisponible ou données corrompues */ }
+
+  const defaults = JSON.parse(JSON.stringify(STRINGZ_DEFAULT_DIAPO));
+  stringzSaveDiapo(defaults);
+  return defaults;
+}
+
+// ---- Sauvegarde les photos du diaporama : visible instantanément sur les autres pages ----
+function stringzSaveDiapo(photos) {
+  try {
+    localStorage.setItem(STRINGZ_DIAPO_KEY, JSON.stringify(photos));
+  } catch (e) { /* quota dépassé, images trop lourdes en base64, etc. */ }
+}
+
+// ---- Prévient les autres onglets/pages ouverts en même temps ----
+function stringzOnDiapoChanged(callback) {
+  window.addEventListener('storage', (e) => {
+    if (e.key === STRINGZ_DIAPO_KEY) callback();
+  });
+}

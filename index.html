@@ -280,6 +280,145 @@
   #popup3 { top: 180px; left: 620px; }
   #popup4 { top: 220px; left: 200px; }
   #popup5 { top: 260px; left: 480px; }
+
+  /* --- Carré photo qui défile (3 photos) --- */
+  .photo-square-wrapper {
+    position: fixed;
+    top: calc(30vh - 50px + 35px + 15px);
+    left: calc(82vw - 50px - 100px);
+    z-index: 5;
+  }
+
+  .photo-square {
+    width: 250px;
+    height: 250px;
+    border-radius: 6px;
+    overflow: hidden;
+    cursor: pointer;
+    border: 3px solid white;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .photo-square:hover,
+  .photo-square:focus-visible {
+    transform: scale(1.08);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.6);
+  }
+
+  .photo-square img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0;
+    transition: opacity 0.8s ease;
+    pointer-events: none;
+  }
+
+  .photo-square img.active {
+    opacity: 1;
+  }
+
+  .photo-lightbox-dots {
+    position: absolute;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .photo-lightbox-dots .dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.4);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.4);
+    transition: background 0.2s ease, transform 0.2s ease;
+  }
+
+  .photo-lightbox-dots .dot.active {
+    background: #ffffff;
+    transform: scale(1.25);
+  }
+
+  @media (max-width: 600px) {
+    .photo-square-wrapper {
+      top: calc(62vh - 150px + 5px);
+      left: calc(72vw - 30px - 20px);
+    }
+    .photo-square {
+      width: 150px;
+      height: 150px;
+    }
+  }
+
+  /* --- Lightbox (photo agrandie + navigation) --- */
+  .photo-lightbox {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.88);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 3000;
+  }
+
+  .photo-lightbox.open {
+    display: flex;
+  }
+
+  .photo-lightbox img {
+    max-width: 85vw;
+    max-height: 80vh;
+    border-radius: 4px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.7);
+  }
+
+  .photo-lightbox-close {
+    position: absolute;
+    top: 18px;
+    right: 26px;
+    color: #fff;
+    font-size: 30px;
+    line-height: 1;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .photo-lightbox-arrow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 46px;
+    height: 46px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 30px;
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 50%;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.15s ease;
+  }
+
+  .photo-lightbox-arrow:hover {
+    background: rgba(255, 255, 255, 0.28);
+  }
+
+  .photo-lightbox-prev { left: 18px; }
+  .photo-lightbox-next { right: 18px; }
+
+  @media (max-width: 600px) {
+    .photo-lightbox-arrow { width: 40px; height: 40px; font-size: 24px; }
+  }
 </style>
 </head>
 <body>
@@ -329,6 +468,20 @@
   </div>
 </main>
 
+<!-- Carré photo qui défile, cliquable pour agrandir -->
+<div class="photo-square-wrapper">
+  <div class="photo-square" id="photo-square" role="button" tabindex="0" aria-label="Voir les photos en grand"></div>
+</div>
+
+<!-- Lightbox pour agrandir les photos -->
+<div class="photo-lightbox" id="photo-lightbox">
+  <div class="photo-lightbox-close" id="photo-lightbox-close">✕</div>
+  <div class="photo-lightbox-arrow photo-lightbox-prev" id="photo-lightbox-prev">‹</div>
+  <img id="photo-lightbox-img" src="" alt="Photo agrandie">
+  <div class="photo-lightbox-arrow photo-lightbox-next" id="photo-lightbox-next">›</div>
+  <div class="photo-lightbox-dots" id="photo-lightbox-dots"></div>
+</div>
+
 <!-- Les 5 popups façon Windows XP -->
 <div class="vista-window" id="popup1">
   <div class="vista-titlebar">
@@ -365,12 +518,12 @@
 
 <div class="vista-window" id="popup4">
   <div class="vista-titlebar">
-    <span class="vista-title">commande perso</span>
+    <span class="vista-title">Commande Perso</span>
     <div class="vista-close" data-target="popup4">✕</div>
   </div>
   <div class="vista-body">
     <img src="" alt="icone4">
-    <a href="commande_perso.html" class="vista-link">Accéder au commande perso</a>
+    <a href="commande_perso.html" class="vista-link">Accéder aux Commande Perso</a>
   </div>
 </div>
 
@@ -466,11 +619,12 @@
   // Sur mobile, les 5 popups apparaissent toujours au même endroit (positions fixes),
   // légèrement chevauchées et pivotées pour garder un effet "bazar", mais toutes visibles à l'écran.
   const mobileLayoutPreset = [
-    { leftF: 0.03, topF: 0.02, wF: 0.58, hF: 0.28, rot: -5 },
-    { leftF: 0.40, topF: 0.06, wF: 0.56, hF: 0.26, rot: 6 },
-    { leftF: 0.04, topF: 0.34, wF: 0.50, hF: 0.26, rot: 4 },
-    { leftF: 0.44, topF: 0.38, wF: 0.52, hF: 0.28, rot: -6 },
-    { leftF: 0.16, topF: 0.68, wF: 0.62, hF: 0.28, rot: 3 }
+    { leftF: 0.03, topF: 0.02, wF: 0.58, hF: 0.28, rot: 0, extraTop: 0 },
+    { leftF: 0.40, topF: 0.06, wF: 0.56, hF: 0.26, rot: 0, extraTop: 4 }, // Boutique
+    { leftF: 0.04, topF: 0.34, wF: 0.50, hF: 0.26, rot: 0, extraTop: 0 },
+    { leftF: 0.44, topF: 0.38, wF: 0.52, hF: 0.28, rot: 0, extraTop: 4 }, // commande perso
+    { leftF: 0.16, topF: 0.68, wF: 0.62, hF: 0.28, rot: 0, extraTop: 0 },
+    { leftF: 0.22, topF: 0.47, wF: 0.50, hF: 0.24, rot: 0, extraTop: 72, extraLeft: -60 }  // Admin : entre Contact, Commande Perso et Showroom privé
   ];
 
   function computeMobileLayout() {
@@ -488,8 +642,8 @@
       width = Math.min(Math.max(minWidth, width), availableWidth);
       height = Math.min(Math.max(minHeight, height), availableHeight);
 
-      let left = preset.leftF * availableWidth;
-      let top = topLimit + preset.topF * availableHeight;
+      let left = preset.leftF * availableWidth + (preset.extraLeft || 0);
+      let top = topLimit + preset.topF * availableHeight + (preset.extraTop || 0);
 
       const maxLeft = Math.max(0, availableWidth - width);
       const maxTop = Math.max(topLimit, window.innerHeight - height);
@@ -719,6 +873,130 @@
   }
 
   window.addEventListener('resize', clampAllPopups);
+</script>
+
+<!-- --- Carré photo qui défile + lightbox avec navigation --- -->
+<script>
+  (function () {
+    // Les photos viennent maintenant de shared-data.js (modifiable depuis admin.html)
+    let photos = stringzLoadDiapo();
+
+    const square = document.getElementById('photo-square');
+    const dotsContainer = document.getElementById('photo-lightbox-dots');
+    let squareImgs = [];
+    let lightboxDots = [];
+    let squareIndex = 0;
+    let autoplayId = null;
+
+    function renderSquare() {
+      square.innerHTML = '';
+      squareIndex = 0;
+      squareImgs = photos.map((src, i) => {
+        const img = document.createElement('img');
+        img.src = src;
+        img.alt = 'Photo ' + (i + 1);
+        if (i === 0) img.classList.add('active');
+        square.appendChild(img);
+        return img;
+      });
+    }
+
+    function renderDots() {
+      dotsContainer.innerHTML = '';
+      lightboxDots = photos.map((_, i) => {
+        const dot = document.createElement('span');
+        dot.className = 'dot' + (i === 0 ? ' active' : '');
+        dotsContainer.appendChild(dot);
+        return dot;
+      });
+    }
+
+    // Défilement automatique des photos dans le carré
+    function startAutoplay() {
+      if (autoplayId) clearInterval(autoplayId);
+      if (squareImgs.length < 2) return;
+      autoplayId = setInterval(() => {
+        squareImgs[squareIndex].classList.remove('active');
+        squareIndex = (squareIndex + 1) % squareImgs.length;
+        squareImgs[squareIndex].classList.add('active');
+      }, 2500);
+    }
+
+    renderSquare();
+    renderDots();
+    startAutoplay();
+
+    // Lightbox
+    const overlay = document.getElementById('photo-lightbox');
+    const lightboxImg = document.getElementById('photo-lightbox-img');
+    const closeBtn = document.getElementById('photo-lightbox-close');
+    const prevBtn = document.getElementById('photo-lightbox-prev');
+    const nextBtn = document.getElementById('photo-lightbox-next');
+    let lightboxIndex = 0;
+
+    function showLightboxPhoto() {
+      if (!photos.length) return;
+      lightboxImg.src = photos[lightboxIndex];
+      lightboxDots.forEach((dot, i) => dot.classList.toggle('active', i === lightboxIndex));
+    }
+
+    function openLightbox(startIndex) {
+      if (!photos.length) return;
+      lightboxIndex = startIndex;
+      showLightboxPhoto();
+      overlay.classList.add('open');
+    }
+
+    function closeLightbox() {
+      overlay.classList.remove('open');
+    }
+
+    function showPrev() {
+      if (!photos.length) return;
+      lightboxIndex = (lightboxIndex - 1 + photos.length) % photos.length;
+      showLightboxPhoto();
+    }
+
+    function showNext() {
+      if (!photos.length) return;
+      lightboxIndex = (lightboxIndex + 1) % photos.length;
+      showLightboxPhoto();
+    }
+
+    square.addEventListener('click', () => openLightbox(squareIndex));
+    square.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        openLightbox(squareIndex);
+      }
+    });
+
+    closeBtn.addEventListener('click', closeLightbox);
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) closeLightbox();
+    });
+    prevBtn.addEventListener('click', (e) => { e.stopPropagation(); showPrev(); });
+    nextBtn.addEventListener('click', (e) => { e.stopPropagation(); showNext(); });
+
+    document.addEventListener('keydown', (e) => {
+      if (!overlay.classList.contains('open')) return;
+      if (e.key === 'Escape') closeLightbox();
+      if (e.key === 'ArrowLeft') showPrev();
+      if (e.key === 'ArrowRight') showNext();
+    });
+
+    // Se met à jour si le diaporama est modifié depuis admin.html (autre onglet)
+    stringzOnDiapoChanged(() => {
+      photos = stringzLoadDiapo();
+      renderSquare();
+      renderDots();
+      startAutoplay();
+      if (overlay.classList.contains('open')) {
+        lightboxIndex = Math.min(lightboxIndex, Math.max(0, photos.length - 1));
+        showLightboxPhoto();
+      }
+    });
+  })();
 </script>
 
 </body>
