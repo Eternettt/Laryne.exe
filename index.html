@@ -347,12 +347,17 @@
       const topLimit = getTopLimit();
       const availableHeight = Math.max(100, window.innerHeight - topLimit);
       const availableWidth = window.innerWidth;
+      const isMobile = window.innerWidth < 600;
 
       // Surface cible occupée par la popup (même plage globale qu'avant),
       // puis on choisit un ratio largeur/hauteur au hasard, indépendant de
       // la forme de l'écran, pour obtenir des fenêtres tantôt verticales,
       // tantôt carrées, tantôt horizontales.
-      const areaFraction = 0.12 + Math.random() * 0.08; // ~12%-20% de la zone dispo (popups plus petits)
+      let areaFraction = 0.12 + Math.random() * 0.08; // ~12%-20% de la zone dispo (popups plus petits)
+      // Make popups 5% smaller on mobile
+      if (isMobile) {
+        areaFraction *= 0.95;
+      }
       const targetArea = availableWidth * availableHeight * areaFraction;
       const aspect = 0.5 + Math.random() * 1.7; // 0.5 = plutôt vertical, 2.2 = plutôt horizontal
 
@@ -360,7 +365,6 @@
       let height = Math.round(Math.sqrt(targetArea / aspect));
 
       // Adjust minimum sizes for mobile devices to ensure popups fit on small screens
-      const isMobile = window.innerWidth < 600;
       const minWidth = isMobile ? 120 : 170;
       const minHeight = isMobile ? 100 : 130;
 
