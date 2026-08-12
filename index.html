@@ -454,12 +454,19 @@
     const titlebar = win.querySelector('.vista-titlebar');
     let offsetX = 0, offsetY = 0, dragging = false;
 
-    // Clic n'importe où sur la fenêtre => passe au premier plan
+    // Click or tap anywhere on the window => bring to front
     win.addEventListener('mousedown', () => bringToFront(win));
+    win.addEventListener('touchstart', () => bringToFront(win));
 
-    titlebar.addEventListener('mousedown', (e) => {
-      // Ne pas démarrer le drag si on clique sur la croix
-      if (e.target.classList.contains('vista-close')) return;
+    function startDrag(e) {
+      // Determine target element from mouse or touch event
+      let target = e;
+      if (e.type === 'touchstart') {
+        if (!e.touches) return;
+        target = e.touches[0];
+      }
+      // If clicking/tapping the close button, do not start drag
+      if (target.target?.classList.contains('vista-close')) return;
 
       dragging = true;
       win.classList.add('dragging');
@@ -467,19 +474,32 @@
       bringToFront(win);
 
       const rect = win.getBoundingClientRect();
-      offsetX = e.clientX - rect.left;
-      offsetY = e.clientY - rect.top;
+      // Use clientX/Y from mouse or touch
+      const clientX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
+      const clientY = e.type === 'touchstart' ? e.touches[0].clientY : e.clientY;
+      offsetX = clientX - rect.left;
+      offsetY = clientY - rect.top;
 
-      e.preventDefault();
-    });
+      // Prevent scrolling on touch devices
+      if (e.type === 'touchstart') e.preventDefault();
+    }
 
-    document.addEventListener('mousemove', (e) => {
+    function dragMove(e) {
       if (!dragging) return;
+      let clientX, clientY;
+      if (e.type === 'touchmove') {
+        if (!e.touches) return;
+        clientX = e.touches[0].clientX;
+        clientY = e.touches[0].clientY;
+      } else {
+        clientX = e.clientX;
+        clientY = e.clientY;
+      }
 
-      let newLeft = e.clientX - offsetX;
-      let newTop = e.clientY - offsetY;
+      let newLeft = clientX - offsetX;
+      let newTop = clientY - offsetY;
 
-      // Empêche totalement la fenêtre de sortir de l'écran (et de passer sous le header)
+      // Keep window within viewport and below header
       const topLimit = getTopLimit();
       const maxLeft = window.innerWidth - win.offsetWidth;
       const maxTop = window.innerHeight - win.offsetHeight;
@@ -489,14 +509,27 @@
 
       win.style.left = newLeft + 'px';
       win.style.top = newTop + 'px';
-    });
 
-    document.addEventListener('mouseup', () => {
+      // Prevent scrolling while dragging
+      if (e.type === 'touchmove') e.preventDefault();
+    }
+
+    function endDrag() {
       if (dragging) {
         dragging = false;
         win.classList.remove('dragging');
       }
-    });
+    }
+
+    titlebar.addEventListener('mousedown', startDrag);
+    titlebar.addEventListener('touchstart', startDrag);
+
+    document.addEventListener('mousemove', dragMove);
+    document.addEventListener('touchmove', dragMove);
+
+    document.addEventListener('mouseup', endDrag);
+    document.addEventListener('touchend', endDrag);
+    document.addEventListener('touchcancel', endDrag);
   });
 
   // --- Réajuste toutes les popups pour qu'elles restent visibles si la fenêtre rétrécit ---
