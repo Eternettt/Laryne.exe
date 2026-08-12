@@ -1,4 +1,4 @@
-# Stringz.exe — Mise en place du vrai paiement (Stripe + Vercel)
+# Laryne.exe — Mise en place du vrai paiement (Stripe + Vercel)
 
 Ce dossier contient tout ton site **plus** ce qu'il faut pour que le bouton
 "Passer commande" déclenche un vrai paiement par carte bancaire via Stripe.

@@ -46,7 +46,7 @@ module.exports = async (req, res) => {
       line_items = [{
         price_data: {
           currency: 'eur',
-          product_data: { name: customItem.name || 'Création personnalisée Stringz.exe' },
+          product_data: { name: customItem.name || 'Création personnalisée Laryne.exe' },
           unit_amount: amount,
         },
         quantity: 1,

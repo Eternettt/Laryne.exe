@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Commande perso - Stringz.exe</title>
+<title>Commande perso - Laryne.exe</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -948,7 +948,7 @@ function mixAndShowReceipt() {
   });
 
   document.getElementById('receipt').innerHTML = `
-    <h2>STRINGZ.EXE</h2>
+    <h2>LARYNE.EXE</h2>
     <div class="sub">Commande personnalisée — ${new Date().toLocaleString('fr-FR')}</div>
     ${lines.map(l => `<div class="receipt-line"><span>${l.label}</span><span>${l.price.toFixed(2)} €</span></div>`).join('')}
     <div class="receipt-total"><span>TOTAL</span><span>${total.toFixed(2)} €</span></div>
