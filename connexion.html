@@ -261,8 +261,9 @@
   const registeredUsers = {};
 
   // Compte admin : donne accès aux fonctions de gestion des produits dans la boutique
-  const ADMIN_EMAIL = 'titinoudupre@gmail.com';
-  const ADMIN_PASSWORD = '123456';
+  // (identifiants centralisés dans shared-data.js)
+  const ADMIN_EMAIL = STRINGZ_ADMIN_EMAIL;
+  const ADMIN_PASSWORD = STRINGZ_ADMIN_PASSWORD;
 
   // Helper to store user session
   // Sécurité : on ne mémorise dans localStorage (persistant) que l'identité
@@ -277,6 +278,9 @@
     };
     localStorage.setItem('stringzUser', JSON.stringify(userData));
     stringzSetAdmin(role === 'admin');
+    // On mémorise durablement que ce compte/appareil a déjà utilisé l'accès
+    // admin, pour pouvoir proposer un ré-accès rapide sur index.html.
+    if (role === 'admin') stringzMarkWasAdmin();
   }
 
   // Helper to clear session

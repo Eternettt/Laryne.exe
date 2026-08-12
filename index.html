@@ -18,6 +18,87 @@
     body { background-image: url('fond-telephone.jpg'); }
   }
 
+  /* --- Écran "Heureux de vous revoir" (ré-accès admin) --- */
+  #admin-welcome-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(30, 8, 20, 0.72);
+    backdrop-filter: blur(2px);
+    z-index: 2000;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  #admin-welcome-overlay.show { display: flex; }
+
+  #admin-welcome-card {
+    width: 100%;
+    max-width: 360px;
+    background: #fdf3f7;
+    border-radius: 10px;
+    box-shadow: 0 12px 30px rgba(0,0,0,0.5);
+    padding: 30px 26px;
+    text-align: center;
+    color: #7a2350;
+    font-family: "Segoe UI", Arial, sans-serif;
+  }
+  #admin-welcome-card h2 {
+    margin: 0 0 10px 0;
+    font-size: 20px;
+    color: #7a2350;
+  }
+  #admin-welcome-card p {
+    margin: 0 0 18px 0;
+    font-size: 14px;
+    color: #9a5c78;
+  }
+  #admin-welcome-code {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #ea8fb8;
+    border-radius: 6px;
+    font-size: 14px;
+    background: #fff;
+    color: #4a1a30;
+    margin-bottom: 6px;
+  }
+  #admin-welcome-code:focus {
+    outline: none;
+    border-color: #c2477a;
+    box-shadow: 0 0 0 2px rgba(194,71,122,0.2);
+  }
+  #admin-welcome-error {
+    display: none;
+    color: #c0392b;
+    font-size: 12px;
+    margin-bottom: 10px;
+    text-align: left;
+  }
+  #admin-welcome-error.show { display: block; }
+
+  .admin-welcome-btn {
+    width: 100%;
+    padding: 12px;
+    margin-top: 10px;
+    border: none;
+    border-radius: 6px;
+    font-size: 15px;
+    font-weight: bold;
+    cursor: pointer;
+  }
+  .admin-welcome-btn-primary {
+    background: linear-gradient(#c2477a, #7a2350);
+    color: #fff;
+  }
+  .admin-welcome-btn-primary:hover { background: linear-gradient(#d1588c, #8a2a5c); }
+  .admin-welcome-btn-secondary {
+    background: linear-gradient(#f0f0f0, #c0c0c0);
+    color: #7a2350;
+    border: 1px solid #888;
+  }
+  .admin-welcome-btn-secondary:hover { background: linear-gradient(#ffffff, #d8d8d8); }
+
   header {
     background: linear-gradient(#c2477a, #7a2350);
     padding: 16px 20px;
@@ -425,6 +506,19 @@
 
 <audio id="popup-sound-el" src="popup-sound.mp3" preload="auto"></audio>
 
+<!-- Écran de ré-accès admin, affiché à l'ouverture du site si cet appareil
+     s'est déjà connecté en admin auparavant (voir shared-data.js) -->
+<div id="admin-welcome-overlay">
+  <div id="admin-welcome-card">
+    <h2>Heureux de vous revoir 👋</h2>
+    <p>Entrez votre code admin pour accéder au site en tant qu'administrateur.</p>
+    <input type="password" id="admin-welcome-code" placeholder="Code admin" autocomplete="current-password">
+    <div id="admin-welcome-error">Code incorrect.</div>
+    <button id="admin-welcome-submit" class="admin-welcome-btn admin-welcome-btn-primary">Accéder en tant qu'admin</button>
+    <button id="admin-welcome-skip" class="admin-welcome-btn admin-welcome-btn-secondary">Continuer en tant qu'utilisateur</button>
+  </div>
+</div>
+
 <header>
   <h1>Laryne.exe</h1>
   <button id="menu-btn">☰ Menu</button>
@@ -554,9 +648,56 @@
   // Le popup Admin n'existe que pour les administrateurs : on le retire
   // complètement du DOM sinon, AVANT que le script principal ne liste les
   // popups (pour ne pas fausser le calcul d'ouverture/tri/positionnement).
-  if (!stringzIsAdmin()) {
-    document.getElementById('popup6').remove();
+  function stringzRemoveAdminPopupIfNeeded() {
+    if (!stringzIsAdmin()) {
+      const popup6 = document.getElementById('popup6');
+      if (popup6) popup6.remove();
+    }
   }
+
+  (function () {
+    const overlay = document.getElementById('admin-welcome-overlay');
+    const codeInput = document.getElementById('admin-welcome-code');
+    const errorEl = document.getElementById('admin-welcome-error');
+    const submitBtn = document.getElementById('admin-welcome-submit');
+    const skipBtn = document.getElementById('admin-welcome-skip');
+
+    // On ne propose le ré-accès admin que si :
+    // - cet appareil s'est déjà connecté en admin auparavant (localStorage)
+    // - on n'est pas déjà admin sur CETTE session (sessionStorage)
+    // - on n'a pas déjà répondu à l'écran depuis l'ouverture de cet onglet
+    const alreadyAnswered = sessionStorage.getItem('stringzAdminPromptDone') === 'true';
+
+    if (stringzWasAdminBefore() && !stringzIsAdmin() && !alreadyAnswered) {
+      overlay.classList.add('show');
+      codeInput.focus();
+
+      function closeOverlay() {
+        sessionStorage.setItem('stringzAdminPromptDone', 'true');
+        overlay.classList.remove('show');
+        stringzRemoveAdminPopupIfNeeded();
+      }
+
+      submitBtn.addEventListener('click', () => {
+        if (codeInput.value === STRINGZ_ADMIN_PASSWORD) {
+          stringzSetAdmin(true);
+          closeOverlay();
+        } else {
+          errorEl.classList.add('show');
+          codeInput.value = '';
+          codeInput.focus();
+        }
+      });
+
+      codeInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') submitBtn.click();
+      });
+
+      skipBtn.addEventListener('click', closeOverlay);
+    } else {
+      stringzRemoveAdminPopupIfNeeded();
+    }
+  })();
 </script>
 
 <script>

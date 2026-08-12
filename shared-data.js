@@ -61,6 +61,26 @@ function stringzSetAdmin(value) {
   else sessionStorage.removeItem(STRINGZ_ADMIN_KEY);
 }
 
+// ---- Identifiants admin (démo) — centralisés ici pour être utilisés à la
+// fois par connexion.html (connexion complète) et index.html (ré-accès
+// rapide "Heureux de vous revoir") ----
+const STRINGZ_ADMIN_EMAIL = 'titinoudupre@gmail.com';
+const STRINGZ_ADMIN_PASSWORD = '123456';
+
+// ---- "A déjà été admin sur cet appareil" ----
+// Contrairement à STRINGZ_ADMIN_KEY (sessionStorage, vidé à la fermeture de
+// l'onglet/navigateur), ce marqueur est mémorisé dans localStorage : il
+// survit d'une visite à l'autre. Il ne donne AUCUN droit admin par
+// lui-même — il sert uniquement à savoir si on doit proposer, à l'ouverture
+// du site, un ré-accès rapide au mode admin (avec le code admin).
+const STRINGZ_WAS_ADMIN_KEY = 'stringzWasAdmin';
+function stringzMarkWasAdmin() {
+  localStorage.setItem(STRINGZ_WAS_ADMIN_KEY, 'true');
+}
+function stringzWasAdminBefore() {
+  return localStorage.getItem(STRINGZ_WAS_ADMIN_KEY) === 'true';
+}
+
 // ---- Prévient les autres onglets/pages ouverts en même temps ----
 // (localStorage déclenche déjà un évènement "storage" dans les AUTRES onglets ;
 //  ceci permet en plus d'écouter un changement fait dans le MÊME onglet.)

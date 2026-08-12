@@ -185,15 +185,35 @@
   .decor-item-placed {
     position: absolute;
     font-size: 20px;
+    width: 1em;
+    height: 1em;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     transform: translate(-50%, -50%);
     cursor: grab;
     user-select: none;
     touch-action: none;
     line-height: 1;
-    padding: 4px;
+    isolation: isolate; /* le filtre de couleur ne se mélange qu'avec cet emoji, pas avec le reste de la page */
   }
   .decor-item-placed:active,
   .decor-item-placed.dragging { cursor: grabbing; z-index: 10; }
+
+  /* L'emoji lui-même, en dessous du filtre de couleur */
+  .decor-emoji { position: relative; z-index: 1; pointer-events: none; }
+
+  /* Filtre coloré posé sur l'emoji : mix-blend-mode "color" reprend la
+     teinte/saturation choisie tout en gardant les contrastes/formes de
+     l'emoji d'origine, donnant un vrai rendu "teinté". */
+  .decor-tint {
+    position: absolute;
+    inset: -1px;
+    border-radius: 40%;
+    mix-blend-mode: color;
+    pointer-events: none;
+    z-index: 2;
+  }
 
   .decor-menu {
     flex: 1; min-width: 230px; background: #fdf3f7; border: 2px solid #ea8fb8; border-radius: 10px;
@@ -667,6 +687,7 @@ function renderPantoneRow() {
 // boutique), puis enchaîne sur l'ouverture du rideau blanc.
 function dropPantoneCardsThenReveal(c) {
   order.color = c;
+  playPaperCrumpleSound();
 
   document.querySelectorAll('#pantone-row .pantone-card').forEach(card => {
     const dx = Math.round(Math.random() * 200 - 100);
@@ -805,7 +826,7 @@ function renderPlacedDecor() {
     el.className = 'decor-item-placed';
     el.style.left = d.x + '%';
     el.style.top = d.y + '%';
-    el.textContent = d.icon;
+    el.innerHTML = `<span class="decor-emoji">${d.icon}</span><span class="decor-tint" style="background:${d.color || '#ffffff'};"></span>`;
     view.appendChild(el);
     makeDecorDraggable(el, d);
   });
@@ -1030,9 +1051,11 @@ renderBowls();
 </script>
 
 <audio id="click-sound" src="click.mp3" preload="auto"></audio>
+<audio id="paper-crumple-sound" src="papier-froisse.mp3" preload="auto"></audio>
 
 <script>
 function playClickSound(){const s=document.getElementById('click-sound');s.currentTime=0;s.play().catch(e=>{});}
+function playPaperCrumpleSound(){const s=document.getElementById('paper-crumple-sound');s.currentTime=0;s.play().catch(e=>{});}
 document.addEventListener('click',function(e){if(e.target.matches('#quit-btn, .ds-dpad, .ds-abxy span')){playClickSound();}});
 </script>
 
