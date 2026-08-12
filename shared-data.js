@@ -46,13 +46,19 @@ function stringzSaveProducts(products) {
   } catch (e) { /* quota dépassé, images trop lourdes en base64, etc. */ }
 }
 
-// ---- Mode admin (posé par connexion.html ou forcé par ADMIN_MODE) ----
+// ---- Mode admin (posé par connexion.html) ----
+// Sécurité : le statut admin n'est JAMAIS mémorisé de façon permanente dans
+// localStorage. Il est stocké dans sessionStorage, qui est propre à l'onglet
+// et vidé automatiquement à la fermeture du navigateur/onglet. Résultat :
+// même si on reste "connecté" (stringzUser en localStorage) d'une visite à
+// l'autre, il faut TOUJOURS se reconnecter avec l'email/mot de passe admin
+// à chaque nouvelle session pour retrouver les droits admin.
 function stringzIsAdmin() {
-  return localStorage.getItem(STRINGZ_ADMIN_KEY) === 'true';
+  return sessionStorage.getItem(STRINGZ_ADMIN_KEY) === 'true';
 }
 function stringzSetAdmin(value) {
-  if (value) localStorage.setItem(STRINGZ_ADMIN_KEY, 'true');
-  else localStorage.removeItem(STRINGZ_ADMIN_KEY);
+  if (value) sessionStorage.setItem(STRINGZ_ADMIN_KEY, 'true');
+  else sessionStorage.removeItem(STRINGZ_ADMIN_KEY);
 }
 
 // ---- Prévient les autres onglets/pages ouverts en même temps ----

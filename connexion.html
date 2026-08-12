@@ -230,6 +230,7 @@
 
 <div id="toast"></div>
 
+<script src="shared-data.js"></script>
 <script>
   function switchTab(name) {
     document.getElementById('tab-login').classList.toggle('active', name === 'login');
@@ -264,25 +265,24 @@
   const ADMIN_PASSWORD = '123456';
 
   // Helper to store user session
+  // Sécurité : on ne mémorise dans localStorage (persistant) que l'identité
+  // (email / nom), jamais le statut admin. Le statut admin passe uniquement
+  // par stringzSetAdmin(), qui l'écrit dans sessionStorage (voir shared-data.js) :
+  // il ne survit donc pas à la fermeture du navigateur/onglet, même si
+  // l'utilisateur reste "connecté" par ailleurs.
   function storeUserSession(email, name, role) {
     const userData = {
       email: email,
-      name: name || email.split('@')[0],
-      role: role // 'admin' or 'user'
+      name: name || email.split('@')[0]
     };
     localStorage.setItem('stringzUser', JSON.stringify(userData));
-    // also keep admin flag for boutique
-    if (role === 'admin') {
-      localStorage.setItem('stringzAdmin', 'true');
-    } else {
-      localStorage.removeItem('stringzAdmin');
-    }
+    stringzSetAdmin(role === 'admin');
   }
 
   // Helper to clear session
   function clearUserSession() {
     localStorage.removeItem('stringzUser');
-    localStorage.removeItem('stringzAdmin');
+    stringzSetAdmin(false);
   }
 
   // Helper to load and show user panel if logged in
@@ -291,9 +291,12 @@
     if (userJson) {
       try {
         const user = JSON.parse(userJson);
+        // Le rôle affiché reflète le statut admin RÉEL de cette session
+        // (sessionStorage), jamais une valeur mémorisée à long terme.
+        const isAdmin = stringzIsAdmin();
         document.getElementById('user-name').textContent = user.name;
         document.getElementById('user-email').textContent = user.email;
-        document.getElementById('user-role').textContent = user.role === 'admin' ? 'Administrateur' : 'Utilisateur';
+        document.getElementById('user-role').textContent = isAdmin ? 'Administrateur' : 'Utilisateur';
         document.getElementById('auth-card').style.display = 'none';
         document.getElementById('user-panel').style.display = 'block';
       } catch (e) {
