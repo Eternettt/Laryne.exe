@@ -64,6 +64,95 @@
     text-align: center;
     color: white;
     text-shadow: 1px 1px 3px rgba(0,0,0,0.4);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* --- Icônes façon Windows 10 (dossiers de bureau) --- */
+  .win10-folders {
+    /* Les dossiers sont positionnés en absolu par rapport à la page,
+       ce conteneur ne sert donc plus qu'à les regrouper dans le DOM. */
+  }
+
+  .win10-folder {
+    position: fixed;
+    width: 90px;
+    padding: 8px 4px;
+    border-radius: 3px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    outline: none;
+    transition: transform 0.2s ease, background 0.15s ease;
+    z-index: 5;
+  }
+
+  /* Icônes éparpillées façon bureau Windows, bien droites,
+     en laissant le coin supérieur gauche totalement libre */
+  .win10-folder:nth-child(1) { top: 16vh; left: 48vw; }
+  .win10-folder:nth-child(2) { top: 46vh; left: 14vw; }
+  .win10-folder:nth-child(3) { top: 74vh; left: 64vw; }
+
+  @media (max-width: 600px) {
+    .win10-folder:nth-child(1) { top: 18vh; left: 48vw; }
+    .win10-folder:nth-child(2) { top: 48vh; left: 8vw; }
+    .win10-folder:nth-child(3) { top: 78vh; left: 50vw; }
+  }
+
+  .win10-folder:hover,
+  .win10-folder:focus-visible {
+    transform: scale(1.05);
+  }
+
+  /* Rectangle de sélection bleu translucide, comme sur le bureau Windows 10 */
+  .win10-folder:hover,
+  .win10-folder:focus-visible {
+    background: rgba(255, 255, 255, 0.18);
+    outline: 1px solid rgba(255, 255, 255, 0.55);
+  }
+
+  .win10-folder:active .win10-folder-icon,
+  .win10-folder:focus-visible .win10-folder-icon {
+    filter: brightness(0.9);
+  }
+
+  .win10-folder-icon {
+    width: 48px;
+    height: 48px;
+    margin-bottom: 6px;
+    filter: drop-shadow(1px 2px 2px rgba(0,0,0,0.45));
+    pointer-events: none;
+  }
+
+  .win10-folder-icon svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .win10-folder-label {
+    font-family: "Segoe UI", Arial, sans-serif;
+    font-size: 12px;
+    line-height: 1.3;
+    text-align: center;
+    width: 100%;
+    padding: 1px 3px;
+    box-sizing: border-box;
+    color: white;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.75);
+    word-wrap: break-word;
+  }
+
+  .win10-folder:hover .win10-folder-label,
+  .win10-folder:focus-visible .win10-folder-label {
+    background: rgba(0, 120, 215, 0.75);
+    text-shadow: none;
+    outline: 1px dotted rgba(255,255,255,0.8);
   }
 
   main p {
@@ -204,6 +293,42 @@
 
 <main>
   <p>Bienvenue sur la page d'accueil. Cliquez sur "Menu" pour découvrir nos rubriques.</p>
+
+  <!-- Dossiers façon Windows 10 -->
+  <div class="win10-folders">
+    <div class="win10-folder" role="button" tabindex="0" onclick="window.location.href='boutique.html'" onkeydown="if(event.key==='Enter'){window.location.href='boutique.html';}">
+      <div class="win10-folder-icon">
+        <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+          <path d="M4 10c0-1.1.9-2 2-2h10l4 4h20c1.1 0 2 .9 2 2v3H4z" fill="#E8A33D"/>
+          <path d="M4 13h40c1.1 0 2 .9 2 2v21c0 1.1-.9 2-2 2H6c-1.1 0-2-.9-2-2V13z" fill="#FFCA5F"/>
+          <path d="M4 13h40c1.1 0 2 .9 2 2v2H4z" fill="#FFB94D"/>
+        </svg>
+      </div>
+      <div class="win10-folder-label">workshop</div>
+    </div>
+
+    <div class="win10-folder" role="button" tabindex="0" onclick="window.location.href='index.html'" onkeydown="if(event.key==='Enter'){window.location.href='index.html';}">
+      <div class="win10-folder-icon">
+        <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+          <path d="M4 10c0-1.1.9-2 2-2h10l4 4h20c1.1 0 2 .9 2 2v3H4z" fill="#E8A33D"/>
+          <path d="M4 13h40c1.1 0 2 .9 2 2v21c0 1.1-.9 2-2 2H6c-1.1 0-2-.9-2-2V13z" fill="#FFCA5F"/>
+          <path d="M4 13h40c1.1 0 2 .9 2 2v2H4z" fill="#FFB94D"/>
+        </svg>
+      </div>
+      <div class="win10-folder-label">stringz</div>
+    </div>
+
+    <div class="win10-folder" role="button" tabindex="0" onclick="window.location.href='contact.html'" onkeydown="if(event.key==='Enter'){window.location.href='contact.html';}">
+      <div class="win10-folder-icon">
+        <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+          <path d="M4 10c0-1.1.9-2 2-2h10l4 4h20c1.1 0 2 .9 2 2v3H4z" fill="#E8A33D"/>
+          <path d="M4 13h40c1.1 0 2 .9 2 2v21c0 1.1-.9 2-2 2H6c-1.1 0-2-.9-2-2V13z" fill="#FFCA5F"/>
+          <path d="M4 13h40c1.1 0 2 .9 2 2v2H4z" fill="#FFB94D"/>
+        </svg>
+      </div>
+      <div class="win10-folder-label">mail club</div>
+    </div>
+  </div>
 </main>
 
 <!-- Les 5 popups façon Windows XP -->
@@ -304,7 +429,7 @@
     return Array.from(popups).some(p => p.classList.contains('open'));
   }
 
-  function spawnPopup(win, width, height, finalLeft, finalTop) {
+  function spawnPopup(win, width, height, finalLeft, finalTop, rot = 0) {
     const btnRect = menuBtn.getBoundingClientRect();
 
     win.style.width = width + 'px';
@@ -325,7 +450,8 @@
       win.style.transition = 'left 0.45s cubic-bezier(.2,.8,.3,1), top 0.45s cubic-bezier(.2,.8,.3,1), transform 0.45s cubic-bezier(.2,.8,.3,1), opacity 0.3s ease';
       win.style.left = finalLeft + 'px';
       win.style.top = finalTop + 'px';
-      win.style.transform = 'scale(1)';
+      // rot != 0 uniquement sur mobile : donne l'impression de bazar même si la position est fixe
+      win.style.transform = rot ? `scale(1) rotate(${rot}deg)` : 'scale(1)';
       win.style.opacity = '1';
     });
 
@@ -339,15 +465,56 @@
     return xOverlap * yOverlap;
   }
 
+  // Sur mobile, les 5 popups apparaissent toujours au même endroit (positions fixes),
+  // légèrement chevauchées et pivotées pour garder un effet "bazar", mais toutes visibles à l'écran.
+  const mobileLayoutPreset = [
+    { leftF: 0.03, topF: 0.02, wF: 0.58, hF: 0.28, rot: -5 },
+    { leftF: 0.40, topF: 0.06, wF: 0.56, hF: 0.26, rot: 6 },
+    { leftF: 0.04, topF: 0.34, wF: 0.50, hF: 0.26, rot: 4 },
+    { leftF: 0.44, topF: 0.38, wF: 0.52, hF: 0.28, rot: -6 },
+    { leftF: 0.16, topF: 0.68, wF: 0.62, hF: 0.28, rot: 3 }
+  ];
+
+  function computeMobileLayout() {
+    const topLimit = getTopLimit();
+    const availableHeight = Math.max(100, window.innerHeight - topLimit);
+    const availableWidth = window.innerWidth;
+    const minWidth = 120;
+    const minHeight = 100;
+
+    return Array.from(popups).map((win, i) => {
+      const preset = mobileLayoutPreset[i % mobileLayoutPreset.length];
+
+      let width = Math.round(availableWidth * preset.wF);
+      let height = Math.round(availableHeight * preset.hF);
+      width = Math.min(Math.max(minWidth, width), availableWidth);
+      height = Math.min(Math.max(minHeight, height), availableHeight);
+
+      let left = preset.leftF * availableWidth;
+      let top = topLimit + preset.topF * availableHeight;
+
+      const maxLeft = Math.max(0, availableWidth - width);
+      const maxTop = Math.max(topLimit, window.innerHeight - height);
+      left = Math.max(0, Math.min(left, maxLeft));
+      top = Math.max(topLimit, Math.min(top, maxTop));
+
+      return { win, width, height, left, top, rot: preset.rot };
+    });
+  }
+
   // Précalcule tailles + positions de toutes les popups en limitant le chevauchement
   function computeLayout() {
+    if (window.innerWidth < 600) {
+      return computeMobileLayout();
+    }
+
     const placedRects = [];
 
     return Array.from(popups).map(win => {
       const topLimit = getTopLimit();
       const availableHeight = Math.max(100, window.innerHeight - topLimit);
       const availableWidth = window.innerWidth;
-      const isMobile = window.innerWidth < 600;
+      const isMobile = false;
 
       // Surface cible occupée par la popup (même plage globale qu'avant),
       // puis on choisit un ratio largeur/hauteur au hasard, indépendant de
@@ -400,7 +567,7 @@
 
       placedRects.push({ left: bestLeft, top: bestTop, right: bestLeft + width, bottom: bestTop + height });
 
-      return { win, width, height, left: bestLeft, top: bestTop };
+      return { win, width, height, left: bestLeft, top: bestTop, rot: 0 };
     });
   }
 
@@ -412,7 +579,7 @@
 
     layout.forEach((item, i) => {
       const id = setTimeout(() => {
-        spawnPopup(item.win, item.width, item.height, item.left, item.top);
+        spawnPopup(item.win, item.width, item.height, item.left, item.top, item.rot);
         playPopupSound();
       }, i * 220); // apparition échelonnée (pas toutes en même temps)
       spawnTimeouts.push(id);
