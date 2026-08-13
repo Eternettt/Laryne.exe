@@ -35,6 +35,18 @@
   }
   #quit-btn:hover { background: #fff; }
 
+  #legal-link-btn {
+    position: fixed;
+    bottom: 10px; left: 10px;
+    z-index: 500;
+    font-size: 10px;
+    color: #999;
+    text-decoration: underline;
+    background: rgba(255,255,255,0.7);
+    padding: 3px 8px;
+    border-radius: 6px;
+  }
+
   main {
     min-height: 100vh;
     display: flex;
@@ -511,6 +523,7 @@
 </div>
 
 <button id="quit-btn" onclick="window.location.href='index.html'">✕ Quitter</button>
+<a id="legal-link-btn" href="mentions-legales.html">Mentions légales · CGV · Confidentialité</a>
 
 <main>
 
@@ -598,6 +611,7 @@
 
 <div class="modal-overlay" id="receipt-overlay"><div id="receipt"></div></div>
 
+<script src="shared-data.js"></script>
 <script>
 /* ======================= DONNÉES ======================= */
 const PANTONES = [
@@ -1009,6 +1023,10 @@ function startBaking() {
 
 // Envoie la commande personnalisée vers la vraie page de paiement (Stripe),
 // exactement comme le panier de la boutique — pas de raccourci vers success.html.
+// Important : on envoie les CHOIX (forme, motif, décors, options) et pas un
+// prix déjà calculé, pour que le serveur (api/create-checkout-session.js)
+// puisse recalculer lui-même le montant à partir de son propre tarif et
+// ignorer toute tentative de modification du prix depuis le navigateur.
 async function goToPayment() {
   const btn = document.getElementById('payment-btn');
   btn.disabled = true;
@@ -1019,9 +1037,13 @@ async function goToPayment() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        customItem: {
-          name: `Création sur mesure — ${shapeName(order.shape)} (taille ${order.size || '-'})`,
-          unitAmount: Math.round((order.total || 0) * 100), // Stripe attend des centimes
+        customOrder: {
+          shapeId: order.shape,
+          motifId: order.motif ? order.motif.id : null,
+          decorIds: (order.decor || []).map(d => d.id),
+          extraIds: (order.extras || []).map(e => e.id),
+          specialRequest: order.specialRequest || '',
+          size: order.size || '',
         },
       }),
     });
@@ -1031,6 +1053,21 @@ async function goToPayment() {
     if (!response.ok) {
       throw new Error(data.error || `Erreur serveur (${response.status})`);
     }
+
+    // Mémorise un récapitulatif (affichage uniquement) pour la page de
+    // remerciement — le montant réellement facturé est celui recalculé par
+    // le serveur dans api/create-checkout-session.js, pas celui-ci.
+    let email = '';
+    try {
+      const userJson = localStorage.getItem('stringzUser');
+      if (userJson) email = JSON.parse(userJson).email || '';
+    } catch (e) { /* ignore */ }
+    stringzSetPendingOrder({
+      source: 'commande_perso',
+      items: [{ name: `Création sur mesure (taille ${order.size || '-'})`, qty: 1, unitPrice: order.total || 0 }],
+      total: order.total || 0,
+      email,
+    });
 
     window.location.href = data.url; // vraie page de paiement Stripe
   } catch (err) {

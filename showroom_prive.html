@@ -305,6 +305,15 @@
     box-shadow: 0 2px 6px rgba(0,0,0,0.35);
   }
   #quit-btn:hover { background: linear-gradient(#d1588c, #8a2a5c); }
+  #legal-link-btn {
+    position: fixed;
+    bottom: 10px; left: 10px;
+    z-index: 500;
+    font-size: 10px;
+    color: #fff;
+    text-decoration: underline;
+    opacity: 0.75;
+  }
 
   #fade {
     position: fixed;
@@ -457,6 +466,7 @@
 <body>
 
 <button id="quit-btn" onclick="window.location.href='index.html'">✕ Quitter</button>
+<a id="legal-link-btn" href="mentions-legales.html">Mentions légales · CGV · Confidentialité</a>
 
 <!-- ============ EXTÉRIEUR ============ -->
 <div id="scene">

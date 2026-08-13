@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Politique de confidentialité - Laryne.exe</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: Arial, Helvetica, sans-serif;
+    background: linear-gradient(135deg, #f9c6dd, #e0729f);
+    background-attachment: fixed;
+    color: #4a1a30;
+    min-height: 100vh;
+  }
+  header {
+    background: linear-gradient(#c2477a, #7a2350);
+    padding: 12px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+  }
+  header h1 { font-size: 20px; color: #fff; text-shadow: 1px 1px 2px rgba(0,0,0,0.5); cursor: pointer; }
+  header h1:hover { text-decoration: underline; }
+  #back-btn {
+    padding: 8px 14px;
+    background: linear-gradient(#f0f0f0, #c0c0c0);
+    color: #7a2350;
+    border: 1px solid #888;
+    cursor: pointer;
+    font-size: 14px;
+    border-radius: 6px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  }
+  #back-btn:hover { background: linear-gradient(#ffffff, #d8d8d8); }
+  main { max-width: 780px; margin: 0 auto; padding: 40px 20px 60px; }
+  .doc-card {
+    background: #fdf3f7;
+    border-radius: 10px;
+    padding: 30px 32px;
+    box-shadow: 0 12px 30px rgba(0,0,0,0.3);
+    line-height: 1.6;
+  }
+  .doc-card h1 { color: #5a1a38; font-size: 24px; margin-bottom: 6px; }
+  .doc-card .updated { font-size: 12px; color: #9a5c78; margin-bottom: 24px; }
+  .doc-card h2 { color: #7a2350; font-size: 16px; margin: 26px 0 8px; }
+  .doc-card p, .doc-card li { font-size: 14px; margin-bottom: 8px; }
+  .doc-card ul { padding-left: 20px; margin-bottom: 10px; }
+  .placeholder {
+    display: inline-block;
+    background: #ffe27a;
+    color: #6a4a00;
+    border: 1px dashed #c99a1f;
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-weight: bold;
+    font-size: 13px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin: 10px 0 18px;
+  }
+  table th, table td {
+    border: 1px solid #f0b8d4;
+    padding: 8px 10px;
+    text-align: left;
+    vertical-align: top;
+  }
+  table th { background: #f6c3dc; color: #5a1a38; }
+  footer.legal-footer {
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 0 20px 40px;
+    text-align: center;
+    font-size: 12px;
+  }
+  footer.legal-footer a { color: #fff; text-decoration: underline; margin: 0 8px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1 onclick="window.location.href='index.html'">Laryne.exe</h1>
+  <button id="back-btn" onclick="window.location.href='index.html'">← Retour</button>
+</header>
+
+<main>
+  <div class="doc-card">
+    <h1>Politique de confidentialité</h1>
+    <p class="updated">Dernière mise à jour : <span class="placeholder">[À REMPLACER : DATE]</span></p>
+
+    <h2>1. Responsable du traitement</h2>
+    <p><span class="placeholder">[À REMPLACER : NOM / RAISON SOCIALE]</span>, dont les coordonnées complètes figurent dans les <a href="mentions-legales.html">mentions légales</a>, est responsable du traitement des données personnelles décrites ci-dessous.</p>
+
+    <h2>2. Données collectées et pourquoi</h2>
+    <table>
+      <tr><th>Donnée</th><th>Où</th><th>Pourquoi (finalité)</th><th>Base légale</th></tr>
+      <tr><td>Nom, e-mail</td><td>Formulaire de contact</td><td>Répondre à votre message</td><td>Intérêt légitime</td></tr>
+      <tr><td>Nom, e-mail, adresse, moyen de contact</td><td>« Lettre de la culotte légère »</td><td>Traiter votre abonnement et vous l'expédier</td><td>Exécution du contrat</td></tr>
+      <tr><td>Nom, moyen de contact</td><td>Inscription à un atelier</td><td>Gérer votre réservation</td><td>Exécution du contrat</td></tr>
+      <tr><td>E-mail, mot de passe, pseudo</td><td>Création de compte</td><td>Gérer votre compte et votre historique d'achats</td><td>Exécution du contrat</td></tr>
+      <tr><td>Nom, adresse de livraison</td><td>Paiement (collecté par Stripe)</td><td>Traiter le paiement et expédier la commande</td><td>Exécution du contrat</td></tr>
+      <tr><td>Détails de personnalisation (couleur, motif, forme…)</td><td>Configurateur « Commande perso »</td><td>Fabriquer la pièce demandée</td><td>Exécution du contrat</td></tr>
+    </table>
+    <p>Aucune donnée bancaire (numéro de carte, etc.) n'est jamais collectée ni stockée par ce site : le paiement est intégralement géré par Stripe, prestataire de paiement certifié PCI-DSS.</p>
+
+    <h2>3. Durée de conservation</h2>
+    <ul>
+      <li>Messages de contact : le temps nécessaire au traitement de la demande, puis suppression.</li>
+      <li>Compte utilisateur·rice : tant que le compte est actif, supprimable à tout moment (voir section 6).</li>
+      <li>Données de commande : durée légale de conservation des documents commerciaux et comptables (en principe jusqu'à 10 ans pour les pièces comptables, 5 ans pour la preuve d'un contrat commercial).</li>
+      <li>Demandes d'abonnement / atelier envoyées par e-mail : conservées le temps nécessaire au traitement, puis archivées ou supprimées selon la même logique que les documents commerciaux.</li>
+    </ul>
+
+    <h2>4. Destinataires des données</h2>
+    <p>Les données sont accessibles par <span class="placeholder">[À REMPLACER : ex. vous-même en tant que responsable du site]</span> et, pour les besoins strictement nécessaires au fonctionnement du site, par les sous-traitants suivants :</p>
+    <ul>
+      <li><strong>Stripe</strong> (traitement des paiements) — <a href="https://stripe.com/fr/privacy" target="_blank" rel="noopener">politique de confidentialité de Stripe</a>.</li>
+      <li><strong>Vercel</strong> (hébergement du site) — <a href="https://vercel.com/legal/privacy-policy" target="_blank" rel="noopener">politique de confidentialité de Vercel</a>.</li>
+      <li>Votre messagerie e-mail personnelle, lorsque vous utilisez un formulaire qui ouvre un e-mail pré-rempli (contact, lettre de la culotte légère, atelier) : le message transite alors par votre propre client mail, pas par un serveur du site.</li>
+    </ul>
+    <p>Aucune donnée n'est vendue à des tiers. Aucune donnée n'est utilisée à des fins publicitaires.</p>
+
+    <h2>5. Transferts hors Union européenne</h2>
+    <p>Stripe et Vercel peuvent être amenés à traiter des données en dehors de l'Union européenne (notamment aux États-Unis), dans le cadre de garanties contractuelles reconnues par le RGPD (clauses contractuelles types, certification Data Privacy Framework selon les cas). Pour plus de détails, consultez leurs politiques respectives ci-dessus.</p>
+
+    <h2>6. Vos droits</h2>
+    <p>Conformément au RGPD et à la loi « Informatique et Libertés », vous disposez des droits suivants sur vos données personnelles :</p>
+    <ul>
+      <li>Droit d'accès et de rectification</li>
+      <li>Droit à l'effacement (« droit à l'oubli »)</li>
+      <li>Droit à la limitation du traitement</li>
+      <li>Droit d'opposition</li>
+      <li>Droit à la portabilité des données</li>
+    </ul>
+    <p>Pour exercer l'un de ces droits, y compris la suppression de votre compte, écrivez-nous à <a href="mailto:contact@laryne.exe">contact@laryne.exe</a> en précisant votre demande. Nous nous engageons à répondre dans un délai maximum d'un mois. Vous pouvez aussi introduire une réclamation auprès de la CNIL (<a href="https://www.cnil.fr" target="_blank" rel="noopener">www.cnil.fr</a>).</p>
+
+    <h2>7. Cookies et traceurs</h2>
+    <p>Ce site n'utilise <strong>aucun cookie publicitaire ni outil d'analyse d'audience (analytics)</strong> à ce jour. Il utilise uniquement le stockage local de votre navigateur (localStorage / sessionStorage), strictement nécessaire au fonctionnement du site :</p>
+    <ul>
+      <li>mémoriser le contenu de votre panier ;</li>
+      <li>vous garder connecté·e sur cet appareil ;</li>
+      <li>afficher les mêmes produits/ateliers d'une page à l'autre.</li>
+    </ul>
+    <p>Ce type de stockage, strictement nécessaire au fonctionnement du site, ne nécessite pas de consentement préalable au sens des recommandations de la CNIL. Si des outils d'analyse ou de publicité venaient à être ajoutés à l'avenir, un bandeau de consentement (accepter / refuser / personnaliser) serait mis en place avant leur activation.</p>
+
+    <h2>8. Sécurité</h2>
+    <p>Des mesures techniques sont mises en œuvre pour protéger vos données (connexion chiffrée HTTPS, mots de passe jamais stockés en clair, accès administrateur vérifié côté serveur). Aucun système n'étant infaillible à 100 %, en cas de doute sur la sécurité de vos informations, contactez-nous.</p>
+  </div>
+</main>
+
+<footer class="legal-footer">
+  <a href="mentions-legales.html">Mentions légales</a>·
+  <a href="confidentialite.html">Confidentialité</a>·
+  <a href="cgv.html">CGV</a>·
+  <a href="livraison.html">Livraison</a>
+</footer>
+
+</body>
+</html>

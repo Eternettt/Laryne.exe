@@ -225,6 +225,16 @@
     <p>Role : <span id="user-role"></span></p>
     <button id="view-purchases-btn" class="submit-btn" style="margin:10px;">Voir mes achats</button>
     <button id="logout-btn" class="submit-btn" style="margin:10px; background:linear-gradient(#c0392b,#7a1f18);">Se déconnecter</button>
+    <div id="purchases-list" style="display:none; text-align:left; background:#fff; border-radius:8px; padding:14px; margin:10px 0; font-size:13px;"></div>
+    <p style="margin-top:18px;">
+      <button id="delete-account-btn" class="submit-btn" style="background:linear-gradient(#7a1f18,#4a1109); font-size:13px; padding:8px;">
+        🗑️ Supprimer mon compte et mes données
+      </button>
+    </p>
+    <p style="font-size:11px; color:#9a5c78; margin-top:6px;">
+      Conformément au RGPD, tu peux demander la suppression de tes données à tout moment
+      (voir la <a href="confidentialite.html">politique de confidentialité</a>).
+    </p>
   </div>
 </main>
 
@@ -257,13 +267,17 @@
     toastTimeout = setTimeout(() => toast.classList.remove('show'), 2500);
   }
 
-  // Petit annuaire de démo en mémoire (aucun vrai serveur ici)
+  // ⚠️ Petit annuaire de démo, EN MÉMOIRE UNIQUEMENT (perdu à chaque
+  // rechargement de page) : il n'y a pas de vraie base de données de
+  // comptes utilisateurs pour l'instant. Voir LISEZ-MOI.md / le rapport
+  // d'audit : un vrai site marchand a besoin d'un vrai backend de comptes
+  // (mots de passe hashés, stockés en base de données), pas seulement d'une
+  // variable JavaScript.
   const registeredUsers = {};
 
-  // Compte admin : donne accès aux fonctions de gestion des produits dans la boutique
-  // (identifiants centralisés dans shared-data.js)
-  const ADMIN_EMAIL = STRINGZ_ADMIN_EMAIL;
-  const ADMIN_PASSWORD = STRINGZ_ADMIN_PASSWORD;
+  // Le compte admin n'est plus vérifié ici : handleLogin() interroge
+  // désormais /api/login, qui compare le mot de passe à un hash stocké
+  // côté serveur (voir api/login.js et shared-data.js).
 
   // Helper to store user session
   // Sécurité : on ne mémorise dans localStorage (persistant) que l'identité
@@ -310,7 +324,7 @@
     }
   }
 
-  function handleLogin(event) {
+  async function handleLogin(event) {
     event.preventDefault();
     const email = document.getElementById('login-email').value.trim();
     const password = document.getElementById('login-password').value;
@@ -326,29 +340,29 @@
       return false;
     }
 
-    let role = 'user';
-    let name = '';
-    // Check if admin
-    if (email.toLowerCase() === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
-      role = 'admin';
-      name = STRINGZ_ADMIN_NAME;
+    // Tentative de connexion admin : vérifiée côté serveur (voir api/login.js),
+    // jamais en comparant le mot de passe dans ce fichier.
+    const submitBtn = document.querySelector('#login-form .submit-btn');
+    submitBtn.disabled = true;
+    const adminResult = await stringzApiLogin(email, password);
+    submitBtn.disabled = false;
+
+    if (adminResult.ok) {
+      storeUserSession(email, adminResult.name, 'admin');
       showToast('Connexion admin réussie, bienvenue !');
-    } else {
-      // Check if user exists in our demo registry
-      const userData = registeredUsers[email];
-      if (userData && userData.password === password) {
-        role = 'user';
-        name = userData.name;
-        showToast('Connexion réussie, bienvenue !');
-      } else {
-        showToast('Identifiants incorrects.', true);
-        return false;
-      }
+      setTimeout(() => { window.location.href = 'index.html'; }, 900);
+      return false;
     }
 
-    storeUserSession(email, name, role);
-    // Redirect to home after short delay
-    setTimeout(() => { window.location.href = 'index.html'; }, 900);
+    // Sinon, on regarde dans l'annuaire de démo (compte "utilisateur" classique).
+    const userData = registeredUsers[email];
+    if (userData && userData.password === password) {
+      storeUserSession(email, userData.name, 'user');
+      showToast('Connexion réussie, bienvenue !');
+      setTimeout(() => { window.location.href = 'index.html'; }, 900);
+    } else {
+      showToast('Identifiants incorrects.', true);
+    }
     return false;
   }
 
@@ -398,11 +412,68 @@
     document.getElementById('user-panel').style.display = 'none';
   }
 
-  // View purchases placeholder (could redirect to a purchases page)
+  // Affiche l'historique d'achats mémorisé localement (voir stringzGetPurchases
+  // dans shared-data.js — stocké uniquement dans ce navigateur, voir
+  // l'avertissement en haut de shared-data.js).
   function handleViewPurchases() {
-    // For demo, just show a toast
-    showToast('Feature coming soon: vos achats seront affichés ici.');
-    // Or redirect: window.location.href = 'purchases.html';
+    let email = '';
+    try {
+      const userJson = localStorage.getItem('stringzUser');
+      if (userJson) email = JSON.parse(userJson).email || '';
+    } catch (e) { /* ignore */ }
+
+    const list = stringzGetPurchases(email);
+    const container = document.getElementById('purchases-list');
+
+    if (!list.length) {
+      container.innerHTML = "<p>Aucun achat enregistré sur cet appareil pour l'instant.</p>";
+    } else {
+      container.innerHTML = list.map(order => {
+        const date = new Date(order.date).toLocaleDateString('fr-FR');
+        const itemsHtml = (order.items || []).map(it =>
+          `<div>${stringzEscapeHtml(it.name)}${it.qty > 1 ? ' × ' + it.qty : ''} — ${(it.unitPrice * it.qty).toFixed(2).replace('.', ',')} €</div>`
+        ).join('');
+        return `<div style="margin-bottom:12px; padding-bottom:10px; border-bottom:1px solid #f0b8d4;">
+          <strong>${date}</strong> — Total : ${(order.total || 0).toFixed(2).replace('.', ',')} €
+          ${itemsHtml}
+        </div>`;
+      }).join('');
+    }
+    container.style.display = 'block';
+  }
+
+  // ---- RGPD : suppression du compte et des données mémorisées localement ----
+  function handleDeleteAccount() {
+    let email = '';
+    try {
+      const userJson = localStorage.getItem('stringzUser');
+      if (userJson) email = JSON.parse(userJson).email || '';
+    } catch (e) { /* ignore */ }
+
+    const confirmed = window.confirm(
+      "Supprimer ton compte et toutes les données mémorisées sur cet appareil (identité, historique d'achats affiché) ? Cette action est irréversible."
+    );
+    if (!confirmed) return;
+
+    // Supprime les données mémorisées localement sur cet appareil.
+    if (email) {
+      try { localStorage.removeItem('stringzPurchases:' + email.toLowerCase()); } catch (e) { /* ignore */ }
+    }
+    clearUserSession();
+
+    // ⚠️ Ce site n'ayant pas de base de données de comptes côté serveur
+    // (voir shared-data.js), il n'existe rien d'autre à supprimer côté
+    // serveur pour un compte "utilisateur" classique. Si des données te
+    // concernant existent ailleurs (ex. commandes réellement passées et
+    // confirmées par Stripe), la marche à suivre reste de nous écrire.
+    showToast('Compte et données locales supprimés. Pour toute autre donnée (ex. commandes passées), écris-nous à contact@laryne.exe.');
+
+    document.getElementById('login-form').reset();
+    document.getElementById('signup-form').reset();
+    switchTab('login');
+    document.getElementById('auth-card').style.display = 'block';
+    document.getElementById('user-panel').style.display = 'none';
+    document.getElementById('purchases-list').style.display = 'none';
   }
 
   // Initialize on page load
@@ -413,8 +484,31 @@
     if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
     const viewPurchasesBtn = document.getElementById('view-purchases-btn');
     if (viewPurchasesBtn) viewPurchasesBtn.addEventListener('click', handleViewPurchases);
+    const deleteAccountBtn = document.getElementById('delete-account-btn');
+    if (deleteAccountBtn) deleteAccountBtn.addEventListener('click', handleDeleteAccount);
   });
 </script>
 
+<footer id="stringz-legal-footer">
+  <a href="mentions-legales.html">Mentions légales</a>
+  <a href="confidentialite.html">Confidentialité</a>
+  <a href="cgv.html">CGV</a>
+  <a href="livraison.html">Livraison</a>
+</footer>
+<style>
+  #stringz-legal-footer {
+    text-align: center;
+    padding: 16px 10px 24px;
+    font-size: 11px;
+  }
+  #stringz-legal-footer a {
+    color: #fff;
+    text-decoration: underline;
+    margin: 0 8px;
+    opacity: 0.9;
+  }
+  #stringz-legal-footer a:hover { opacity: 1; }
+</style>
 </body>
 </html>
+

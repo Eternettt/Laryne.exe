@@ -358,14 +358,14 @@
       card.onclick = () => showDetail(w.id);
       card.innerHTML = `
         <div class="workshop-card-top">
-          <span class="icon">${w.icon}</span>
-          <span class="date-badge">${w.dateLabel}</span>
+          <span class="icon">${stringzEscapeHtml(w.icon)}</span>
+          <span class="date-badge">${stringzEscapeHtml(w.dateLabel)}</span>
         </div>
         <div class="workshop-card-body">
-          <h3>${w.title}</h3>
-          <p>${w.shortDescription}</p>
+          <h3>${stringzEscapeHtml(w.title)}</h3>
+          <p>${stringzEscapeHtml(w.shortDescription)}</p>
           <div class="price-row">
-            <span class="price">${w.price} €</span>
+            <span class="price">${stringzEscapeHtml(w.price)} €</span>
             <span class="see-more">Voir & réserver →</span>
           </div>
         </div>
@@ -388,7 +388,13 @@
     selectedWorkshop = w;
 
     document.getElementById('detail-date').textContent = w.dateLabel;
-    document.getElementById('detail-title').innerHTML = `${w.title} ${w.icon}`;
+    document.getElementById('detail-title').innerHTML = `${stringzEscapeHtml(w.title)} ${stringzEscapeHtml(w.icon)}`;
+    // Note : la description et la note (ci-dessous) restent en innerHTML brut
+    // volontairement : elles sont écrites par l'administratrice du site
+    // (panneau Gestion, protégé côté serveur — voir shared-data.js) et
+    // utilisent parfois de simples entités HTML (ex. &lt;3). Comme il ne
+    // s'agit jamais d'un texte saisi par un·e visiteur·se, ce n'est pas une
+    // surface XSS exploitable par un tiers.
     document.getElementById('detail-description').innerHTML = w.description.map(p => `<p>${p}</p>`).join('');
     document.getElementById('detail-location').textContent = w.location;
     document.getElementById('detail-when').textContent = w.whenLabel;
@@ -506,5 +512,26 @@
   });
 </script>
 
+<footer id="stringz-legal-footer">
+  <a href="mentions-legales.html">Mentions légales</a>
+  <a href="confidentialite.html">Confidentialité</a>
+  <a href="cgv.html">CGV</a>
+  <a href="livraison.html">Livraison</a>
+</footer>
+<style>
+  #stringz-legal-footer {
+    text-align: center;
+    padding: 16px 10px 24px;
+    font-size: 11px;
+  }
+  #stringz-legal-footer a {
+    color: #fff;
+    text-decoration: underline;
+    margin: 0 8px;
+    opacity: 0.9;
+  }
+  #stringz-legal-footer a:hover { opacity: 1; }
+</style>
 </body>
 </html>
+

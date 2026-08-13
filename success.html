@@ -36,16 +36,56 @@
   }
   a.btn:hover { background: linear-gradient(#d1588c, #8a2a5c); }
   .order-id { font-size: 12px; color: #9a5c78; margin-top: 18px; }
+
+  .order-summary {
+    text-align: left;
+    background: #fff;
+    border: 1px solid #f6c3dc;
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin-bottom: 20px;
+  }
+  .order-summary .line {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 14px;
+    color: #4a1a30;
+    padding: 4px 0;
+  }
+  .order-summary .line + .line { border-top: 1px solid #fbdcec; }
+  .order-summary .total {
+    display: flex;
+    justify-content: space-between;
+    font-weight: bold;
+    color: #7a2350;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 2px solid #ea8fb8;
+  }
+  .no-account-note {
+    font-size: 12px;
+    color: #9a5c78;
+    margin-top: -10px;
+    margin-bottom: 20px;
+  }
 </style>
 </head>
 <body>
   <div class="card">
     <h1>✅ Paiement confirmé</h1>
     <p>Merci pour ta commande sur Laryne.exe ! Un e-mail de confirmation t'a été envoyé par Stripe.</p>
+
+    <div class="order-summary" id="order-summary" style="display:none;"></div>
+    <p class="no-account-note" id="no-account-note" style="display:none;">
+      Connecte-toi la prochaine fois avant de payer pour retrouver cette commande dans « Mes achats ».
+    </p>
+
     <a class="btn" href="index.html">Retour à l'accueil</a>
     <div class="order-id" id="order-id"></div>
   </div>
 
+  <script src="shared-data.js"></script>
   <script>
     // Affiche l'identifiant de session Stripe si présent dans l'URL (utile pour le support client)
     const params = new URLSearchParams(window.location.search);
@@ -53,6 +93,58 @@
     if (sessionId) {
       document.getElementById('order-id').textContent = 'Référence : ' + sessionId;
     }
+
+    // On ne considère la commande comme réelle QUE parce qu'on vient d'arriver
+    // sur cette page : elle n'est atteinte qu'après une confirmation de
+    // paiement par Stripe (redirection retour). On enregistre alors cette
+    // commande, avec sa date, dans l'historique "Mes achats" de l'utilisateur.
+    const pending = stringzTakePendingOrder();
+
+    if (pending && Array.isArray(pending.items) && pending.items.length) {
+      const summaryEl = document.getElementById('order-summary');
+      summaryEl.style.display = 'block';
+      summaryEl.innerHTML = pending.items.map(it => `
+        <div class="line">
+          <span>${stringzEscapeHtml(it.name)}${it.qty > 1 ? ' × ' + it.qty : ''}</span>
+          <span>${(it.unitPrice * it.qty).toFixed(2).replace('.', ',')} €</span>
+        </div>
+      `).join('') + `
+        <div class="total"><span>Total</span><span>${(pending.total || 0).toFixed(2).replace('.', ',')} €</span></div>
+      `;
+
+      if (pending.email) {
+        stringzAddPurchase(pending.email, {
+          id: sessionId || ('local-' + Date.now()),
+          date: new Date().toISOString(),
+          source: pending.source || 'boutique',
+          items: pending.items,
+          total: pending.total || 0
+        });
+      } else {
+        document.getElementById('no-account-note').style.display = 'block';
+      }
+    }
   </script>
+<footer id="stringz-legal-footer">
+  <a href="mentions-legales.html">Mentions légales</a>
+  <a href="confidentialite.html">Confidentialité</a>
+  <a href="cgv.html">CGV</a>
+  <a href="livraison.html">Livraison</a>
+</footer>
+<style>
+  #stringz-legal-footer {
+    text-align: center;
+    padding: 16px 10px 24px;
+    font-size: 11px;
+  }
+  #stringz-legal-footer a {
+    color: #fff;
+    text-decoration: underline;
+    margin: 0 8px;
+    opacity: 0.9;
+  }
+  #stringz-legal-footer a:hover { opacity: 1; }
+</style>
 </body>
 </html>
+

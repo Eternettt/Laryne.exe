@@ -6,12 +6,21 @@
    immédiatement sur toutes les autres pages qui incluent ce script,
    dès qu'elles se (re)chargent.
 
+   ⚠️ IMPORTANT (lire LISEZ-MOI.md) : comme il n'y a pas de vraie base de
+   données partagée, les "produits" restent stockés uniquement dans le
+   localStorage de CHAQUE navigateur. Une modification faite dans le panneau
+   Gestion n'est donc visible que sur l'appareil qui l'a faite, pas pour vos
+   client·es. C'est suffisant pour une démo, mais PAS pour un vrai site
+   marchand multi-utilisateur : il faudra à terme une vraie base de données
+   côté serveur pour les produits, les comptes et les commandes.
+
    Inclure AVANT le script principal de chaque page :
    <script src="shared-data.js"></script>
    ========================================================================== */
 
 const STRINGZ_PRODUCTS_KEY = 'stringzProductsV1';
 const STRINGZ_ADMIN_KEY = 'stringzAdmin';
+const STRINGZ_ADMIN_TOKEN_KEY = 'stringzAdminToken';
 
 const STRINGZ_DEFAULT_PRODUCTS = [
   { id: 1, name: "String 1", category: "String", price: 89.99, stock: 12, icon: "🩲", images: ["https://placehold.co/300x200?text=String+1"] },
@@ -23,6 +32,18 @@ const STRINGZ_DEFAULT_PRODUCTS = [
   { id: 7, name: "String 4", category: "String", price: 29.90, stock: 15, icon: "🩲", images: ["https://placehold.co/300x200?text=String+4"] },
   { id: 8, name: "String 5", category: "String", price: 249.00, stock: 6, icon: "🩲", images: ["https://placehold.co/300x200?text=String+5"] },
 ];
+
+// ---- Échappe du texte avant de l'insérer en HTML (protection XSS) ----
+// À utiliser systématiquement pour tout texte modifiable depuis le panneau
+// Gestion (nom produit, catégorie, etc.) avant de l'injecter via innerHTML.
+function stringzEscapeHtml(value) {
+  return String(value == null ? '' : value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
 // ---- Charge les produits (localStorage si présent, sinon valeurs par défaut) ----
 function stringzLoadProducts() {
@@ -46,13 +67,28 @@ function stringzSaveProducts(products) {
   } catch (e) { /* quota dépassé, images trop lourdes en base64, etc. */ }
 }
 
-// ---- Mode admin (posé par connexion.html) ----
-// Sécurité : le statut admin n'est JAMAIS mémorisé de façon permanente dans
-// localStorage. Il est stocké dans sessionStorage, qui est propre à l'onglet
-// et vidé automatiquement à la fermeture du navigateur/onglet. Résultat :
-// même si on reste "connecté" (stringzUser en localStorage) d'une visite à
-// l'autre, il faut TOUJOURS se reconnecter avec l'email/mot de passe admin
-// à chaque nouvelle session pour retrouver les droits admin.
+// ==========================================================================
+// ---- Mode admin ----
+// ==========================================================================
+// Sécurité : le statut admin affiché côté client (sessionStorage) ne sert
+// qu'à AFFICHER ou MASQUER les boutons de gestion. Il n'est plus la source
+// de vérité : il est posé UNIQUEMENT après une vérification réussie auprès
+// de /api/login (voir connexion.html et index.html), qui compare le mot de
+// passe à un hash stocké côté serveur (variables d'environnement Vercel) et
+// renvoie un jeton signé (stringzAdminToken). Ce jeton n'est jamais un mot
+// de passe : il ne prouve rien de plus que "le serveur a validé une
+// connexion admin récente", et toute route serveur sensible doit le
+// revérifier elle-même via /api/verify-session plutôt que de faire
+// confiance à sessionStorage seul.
+//
+// Ancienne implémentation (retirée) : un mot de passe admin en clair vivait
+// directement dans ce fichier JS, visible par n'importe qui ouvrant les
+// outils de développement, et n'importe qui pouvait aussi s'auto-attribuer
+// le rôle admin en tapant sessionStorage.setItem('stringzAdmin','true').
+// Ce n'est plus possible pour les actions protégées côté serveur (paiement,
+// vérification de session) ; ça reste techniquement possible pour
+// l'affichage local du panneau Gestion tant que les produits eux-mêmes ne
+// sont pas stockés côté serveur (voir avertissement en haut de ce fichier).
 function stringzIsAdmin() {
   return sessionStorage.getItem(STRINGZ_ADMIN_KEY) === 'true';
 }
@@ -60,21 +96,72 @@ function stringzSetAdmin(value) {
   if (value) sessionStorage.setItem(STRINGZ_ADMIN_KEY, 'true');
   else sessionStorage.removeItem(STRINGZ_ADMIN_KEY);
 }
+function stringzSetAdminToken(token) {
+  if (token) sessionStorage.setItem(STRINGZ_ADMIN_TOKEN_KEY, token);
+  else sessionStorage.removeItem(STRINGZ_ADMIN_TOKEN_KEY);
+}
+function stringzGetAdminToken() {
+  return sessionStorage.getItem(STRINGZ_ADMIN_TOKEN_KEY) || '';
+}
 
-// ---- Identifiants admin (démo) — centralisés ici pour être utilisés à la
-// fois par connexion.html (connexion complète) et index.html (ré-accès
-// rapide "Heureux de vous revoir") ----
-const STRINGZ_ADMIN_EMAIL = 'titinoudupre@gmail.com';
-const STRINGZ_ADMIN_PASSWORD = '123456';
+// ---- Tente une connexion admin auprès du serveur (jamais en local) ----
+// Retourne { ok: true, name } ou { ok: false, error }.
+async function stringzApiLogin(email, password) {
+  try {
+    const res = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.token) {
+      stringzSetAdminToken(data.token);
+      stringzSetAdmin(true);
+      stringzMarkWasAdmin();
+      return { ok: true, name: data.name || STRINGZ_ADMIN_NAME };
+    }
+    return { ok: false, error: data.error || 'Identifiants incorrects.' };
+  } catch (e) {
+    return { ok: false, error: "Impossible de contacter le serveur d'authentification." };
+  }
+}
+
+// ---- Revérifie auprès du serveur que le jeton admin local est toujours
+// valide (appelé au chargement de admin.html / boutique.html). Empêche
+// qu'un jeton expiré, ou une valeur bricolée à la main, donne accès aux
+// fonctions de gestion. ----
+async function stringzVerifyAdminSession() {
+  const token = stringzGetAdminToken();
+  if (!token) { stringzSetAdmin(false); return false; }
+  try {
+    const res = await fetch('/api/verify-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token })
+    });
+    const data = await res.json().catch(() => ({}));
+    const ok = res.ok && data.admin === true;
+    stringzSetAdmin(ok);
+    if (!ok) stringzSetAdminToken(null);
+    return ok;
+  } catch (e) {
+    // Si le serveur est injoignable, on ne fait PAS confiance au localStorage :
+    // par sécurité on retire l'accès admin plutôt que de le laisser passer.
+    stringzSetAdmin(false);
+    return false;
+  }
+}
+
 // Pseudo affiché pour le compte admin (écran "Heureux de vous revoir", etc.)
-const STRINGZ_ADMIN_NAME = 'eternett';
+// (uniquement une valeur d'affichage par défaut ; la valeur qui fait foi est
+// renvoyée par /api/login)
+const STRINGZ_ADMIN_NAME = 'Administrateur';
 
 // ---- "A déjà été admin sur cet appareil" ----
-// Contrairement à STRINGZ_ADMIN_KEY (sessionStorage, vidé à la fermeture de
-// l'onglet/navigateur), ce marqueur est mémorisé dans localStorage : il
-// survit d'une visite à l'autre. Il ne donne AUCUN droit admin par
-// lui-même — il sert uniquement à savoir si on doit proposer, à l'ouverture
-// du site, un ré-accès rapide au mode admin (avec le code admin).
+// Mémorisé dans localStorage (survit à la fermeture de l'onglet) mais ne
+// donne AUCUN droit admin par lui-même : sert uniquement à proposer, à
+// l'ouverture du site, un ré-accès rapide (avec re-saisie du mot de passe,
+// revérifié côté serveur).
 const STRINGZ_WAS_ADMIN_KEY = 'stringzWasAdmin';
 function stringzMarkWasAdmin() {
   localStorage.setItem(STRINGZ_WAS_ADMIN_KEY, 'true');
@@ -90,6 +177,63 @@ function stringzOnProductsChanged(callback) {
   window.addEventListener('storage', (e) => {
     if (e.key === STRINGZ_PRODUCTS_KEY) callback();
   });
+}
+
+/* ==========================================================================
+   Commande en attente / historique d'achats (démo locale)
+   ==========================================================================
+   ⚠️ Comme indiqué en haut de ce fichier : ceci est stocké uniquement dans
+   le localStorage/sessionStorage du navigateur de la personne qui achète.
+   Ça permet d'afficher un récapitulatif de commande juste après un paiement
+   Stripe réussi et de retrouver ses achats précédents SUR LE MÊME APPAREIL/
+   NAVIGATEUR. Ce n'est PAS un vrai historique de commandes côté serveur :
+   pour ça il faut lier chaque paiement (confirmé par le webhook Stripe, voir
+   /api/webhook.js) à un vrai compte utilisateur en base de données.
+   ========================================================================== */
+
+const STRINGZ_PENDING_ORDER_KEY = 'stringzPendingOrder';
+const STRINGZ_PURCHASES_KEY_PREFIX = 'stringzPurchases:';
+
+// Appelé juste avant la redirection vers Stripe, pour retrouver le panier
+// après le retour sur success.html (Stripe ne renvoie pas le détail du panier).
+function stringzSetPendingOrder(order) {
+  try {
+    sessionStorage.setItem(STRINGZ_PENDING_ORDER_KEY, JSON.stringify(order));
+  } catch (e) { /* ignore */ }
+}
+
+// Lit puis efface la commande en attente (à usage unique, appelé sur success.html).
+function stringzTakePendingOrder() {
+  try {
+    const raw = sessionStorage.getItem(STRINGZ_PENDING_ORDER_KEY);
+    sessionStorage.removeItem(STRINGZ_PENDING_ORDER_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function stringzAddPurchase(email, purchase) {
+  if (!email) return;
+  try {
+    const key = STRINGZ_PURCHASES_KEY_PREFIX + email.toLowerCase();
+    const raw = localStorage.getItem(key);
+    const list = raw ? JSON.parse(raw) : [];
+    list.unshift(purchase);
+    localStorage.setItem(key, JSON.stringify(list));
+  } catch (e) { /* ignore */ }
+}
+
+function stringzGetPurchases(email) {
+  if (!email) return [];
+  try {
+    const key = STRINGZ_PURCHASES_KEY_PREFIX + email.toLowerCase();
+    const raw = localStorage.getItem(key);
+    const list = raw ? JSON.parse(raw) : [];
+    return Array.isArray(list) ? list : [];
+  } catch (e) {
+    return [];
+  }
 }
 
 /* ==========================================================================

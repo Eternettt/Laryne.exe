@@ -691,7 +691,7 @@
 </header>
 
 <div class="toolbar">
-  <input type="text" id="search" placeholder="Rechercher un produit..." oninput="renderProducts()">
+  <input type="text" id="search" placeholder="Rechercher un produit..." aria-label="Rechercher un produit" oninput="renderProducts()">
   <select id="category-filter" onchange="renderProducts()">
     <option value="">Toutes catégories</option>
   </select>
@@ -815,22 +815,22 @@
 
     <div class="pe-field">
       <label><span>Taille du sprite</span><span id="postit-size-value">100%</span></label>
-      <input type="range" id="postit-size-range" min="50" max="220" step="5" value="100" oninput="updatePostitSize(this.value)">
+      <input type="range" id="postit-size-range" min="50" max="220" step="5" value="100" aria-label="Taille du sticker" oninput="updatePostitSize(this.value)">
     </div>
 
     <div class="pe-field">
       <label><span>Largeur uniquement</span><span id="postit-scalex-value">100%</span></label>
-      <input type="range" id="postit-scalex-range" min="30" max="250" step="5" value="100" oninput="updatePostitScaleX(this.value)">
+      <input type="range" id="postit-scalex-range" min="30" max="250" step="5" value="100" aria-label="Étirement horizontal du sticker" oninput="updatePostitScaleX(this.value)">
     </div>
 
     <div class="pe-field">
       <label><span>Hauteur uniquement</span><span id="postit-scaley-value">100%</span></label>
-      <input type="range" id="postit-scaley-range" min="30" max="250" step="5" value="100" oninput="updatePostitScaleY(this.value)">
+      <input type="range" id="postit-scaley-range" min="30" max="250" step="5" value="100" aria-label="Étirement vertical du sticker" oninput="updatePostitScaleY(this.value)">
     </div>
 
     <div class="pe-field">
       <label><span>Orientation</span><span id="postit-rotation-value">0°</span></label>
-      <input type="range" id="postit-rotation-range" min="-25" max="25" step="5" value="0" oninput="updatePostitRotation(this.value)">
+      <input type="range" id="postit-rotation-range" min="-25" max="25" step="5" value="0" aria-label="Rotation du sticker" oninput="updatePostitRotation(this.value)">
       <div class="pe-rotation-buttons">
         <button type="button" onclick="nudgeRotation(-25)">↺ -25°</button>
         <button type="button" onclick="nudgeRotation(25)">↻ +25°</button>
@@ -947,10 +947,10 @@ const POSTIT_MAX = 260;
 
 function productContentHTML(p, stockClass, stockLabel) {
   return `
-    ${p.iconImage ? `<div class="product-icon-badge"><img src="${p.iconImage}" alt=""></div>` : (p.icon ? `<div class="product-icon-badge">${p.icon}</div>` : "")}
-    <img src="${(p.images && p.images[0]) || p.img}" alt="${p.name}">
-    <h3>${p.name}</h3>
-    <div class="cat">${p.category}</div>
+    ${p.iconImage ? `<div class="product-icon-badge"><img src="${stringzEscapeHtml(p.iconImage)}" alt=""></div>` : (p.icon ? `<div class="product-icon-badge">${stringzEscapeHtml(p.icon)}</div>` : "")}
+    <img src="${stringzEscapeHtml((p.images && p.images[0]) || p.img)}" alt="${stringzEscapeHtml(p.name)}">
+    <h3>${stringzEscapeHtml(p.name)}</h3>
+    <div class="cat">${stringzEscapeHtml(p.category)}</div>
     <div class="price">${p.price.toFixed(2).replace('.', ',')} €</div>
     <div class="stock ${stockClass}">${stockLabel}</div>
     <button ${p.stock === 0 ? "disabled" : ""} onclick="event.stopPropagation(); openProductWindows(${p.id})">
@@ -986,7 +986,7 @@ function updateCardContent(card, p) {
     card.style.overflow = "hidden";
 
     card.innerHTML = `
-      <div class="postit-bg-layer"><img src="${p.postit}"></div>
+      <div class="postit-bg-layer"><img src="${stringzEscapeHtml(p.postit)}" alt="" role="presentation"></div>
       <div class="postit-content" id="pc-${p.id}" style="position:absolute; top:0; left:0; width:${POSTIT_BASE}px; padding:18px 16px 30px 16px; box-sizing:border-box; transform-origin: top left;">
         ${productContentHTML(p, stockClass, stockLabel)}
       </div>
@@ -1142,7 +1142,7 @@ function updateCartUI() {
       const item = document.createElement("div");
       item.className = "cart-item";
       item.innerHTML = `
-        <div class="name">${product.name}<br><small>${product.price.toFixed(2).replace('.', ',')} € x ${qty}</small></div>
+        <div class="name">${stringzEscapeHtml(product.name)}<br><small>${product.price.toFixed(2).replace('.', ',')} € x ${qty}</small></div>
         <div class="qty-controls">
           <button onclick="changeQty(${product.id}, -1)">−</button>
           <span>${qty}</span>
@@ -1184,17 +1184,34 @@ async function checkout() {
       body: JSON.stringify({ cart }),
     });
 
-    if (!response.ok) throw new Error("Erreur lors de la création du paiement.");
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Erreur lors de la création du paiement.");
 
-    const data = await response.json();
+    // Mémorise le contenu du panier pour pouvoir l'afficher sur la page de
+    // remerciement au retour de Stripe (voir success.html / shared-data.js).
+    let email = '';
+    try {
+      const userJson = localStorage.getItem('stringzUser');
+      if (userJson) email = JSON.parse(userJson).email || '';
+    } catch (e) { /* ignore */ }
+
+    const items = Object.entries(cart).map(([id, qty]) => {
+      const product = products.find(p => p.id === Number(id));
+      return product ? { name: product.name, qty, unitPrice: product.price } : null;
+    }).filter(Boolean);
+    const total = items.reduce((sum, it) => sum + it.unitPrice * it.qty, 0);
+
+    stringzSetPendingOrder({ source: 'boutique', items, total, email });
+
     window.location.href = data.url; // redirige vers la vraie page de paiement Stripe
   } catch (err) {
     console.error(err);
-    showToast("Le paiement n'a pas pu être initié. Réessaie plus tard.");
+    showToast(err.message || "Le paiement n'a pas pu être initié. Réessaie plus tard.");
     btn.disabled = false;
     btn.textContent = "Passer commande";
   }
 }
+
 
 // ---- Toast ----
 let toastTimeout;
@@ -1377,10 +1394,20 @@ function addCustomImage(event) {
 const MENU_PWIN_IDS = ["pwin-image-menu", "pwin-model-picker", "pwin-new-model"];
 
 // ---- Accès admin ----
-// Mets 1 pour forcer le mode admin depuis le code, 0 sinon.
-// Se connecter en tant qu'admin depuis connexion.html fonctionne aussi (indépendamment de ce réglage).
-const ADMIN_MODE = 0;
-let isAdmin = ADMIN_MODE === 1 || stringzIsAdmin();
+// Fermé par défaut (fail-closed) tant que la vérification serveur n'a pas
+// répondu — voir initAdminAccess() plus bas, qui interroge
+// /api/verify-session.js. Il n'y a plus d'interrupteur "ADMIN_MODE" en dur
+// dans le code : c'était une porte dérobée permettant de s'octroyer les
+// droits admin en éditant ce fichier JS.
+let isAdmin = false;
+
+async function initAdminAccess() {
+  isAdmin = await stringzVerifyAdminSession();
+  updateAdminUI();
+  if (isAdmin && document.getElementById("pwin-admin").classList.contains("open")) {
+    renderAdminList();
+  }
+}
 
 function updateAdminUI() {
   document.getElementById("header-admin-btn").style.display = isAdmin ? "inline-block" : "none";
@@ -1420,11 +1447,11 @@ function renderAdminList() {
   const container = document.getElementById("admin-product-list");
   container.innerHTML = products.map(p => `
     <div class="admin-row" data-id="${p.id}">
-      <img class="admin-thumb" src="${(p.images && p.images[0]) || p.img}" alt="${p.name}">
+      <img class="admin-thumb" src="${stringzEscapeHtml((p.images && p.images[0]) || p.img)}" alt="${stringzEscapeHtml(p.name)}">
       <div class="admin-fields">
-        <input type="text" class="admin-name-input" value="${p.name}"
+        <input type="text" class="admin-name-input" value="${stringzEscapeHtml(p.name)}"
                onchange="updateProductField(${p.id}, 'name', this.value)">
-        <input type="text" value="${p.category}"
+        <input type="text" value="${stringzEscapeHtml(p.category)}"
                onchange="updateProductField(${p.id}, 'category', this.value)">
         <div class="admin-fields-row">
           <input type="number" step="0.01" min="0" value="${p.price}"
@@ -1485,7 +1512,7 @@ function renderPostitPreview() {
   const overall = (p.postitSize || 100) / 100;
   const sx = overall * ((p.postitScaleX || 100) / 100);
   const sy = overall * ((p.postitScaleY || 100) / 100);
-  preview.innerHTML = `<img src="${p.postit}" style="transform: rotate(${p.postitRotation || 0}deg) scale(${sx}, ${sy});">`;
+  preview.innerHTML = `<img src="${stringzEscapeHtml(p.postit)}" alt="" role="presentation" style="transform: rotate(${p.postitRotation || 0}deg) scale(${sx}, ${sy});">`;
 }
 
 function updatePostitSize(val) {
@@ -1630,7 +1657,7 @@ function openModelPicker() {
 function renderModelPickerList() {
   const container = document.getElementById("model-picker-list");
   container.innerHTML = products.map(p =>
-    `<button type="button" class="model-pick-btn" onclick="selectModelForImage(${p.id})">${p.name} <span class="model-pick-cat">(${p.category})</span></button>`
+    `<button type="button" class="model-pick-btn" onclick="selectModelForImage(${p.id})">${stringzEscapeHtml(p.name)} <span class="model-pick-cat">(${stringzEscapeHtml(p.category)})</span></button>`
   ).join("");
 }
 
@@ -1800,6 +1827,7 @@ initCategories();
 renderProducts();
 updateCartUI();
 updateAdminUI();
+initAdminAccess(); // revérifie l'accès admin auprès du serveur (asynchrone)
 
 // Si les produits sont modifiés ailleurs (admin.html, un autre onglet...),
 // on recharge et on réaffiche automatiquement, sans avoir à rafraîchir la page.
@@ -1812,5 +1840,26 @@ stringzOnProductsChanged(() => {
 });
 </script>
 
+<footer id="stringz-legal-footer">
+  <a href="mentions-legales.html">Mentions légales</a>
+  <a href="confidentialite.html">Confidentialité</a>
+  <a href="cgv.html">CGV</a>
+  <a href="livraison.html">Livraison</a>
+</footer>
+<style>
+  #stringz-legal-footer {
+    text-align: center;
+    padding: 16px 10px 24px;
+    font-size: 11px;
+  }
+  #stringz-legal-footer a {
+    color: #fff;
+    text-decoration: underline;
+    margin: 0 8px;
+    opacity: 0.9;
+  }
+  #stringz-legal-footer a:hover { opacity: 1; }
+</style>
 </body>
 </html>
+

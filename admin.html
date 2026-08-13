@@ -622,8 +622,11 @@
     document.getElementById('section-workshop').classList.toggle('show', name === 'workshop');
   }
 
-  function checkAccess() {
-    const admin = stringzIsAdmin();
+  // Revérifie auprès du serveur (voir /api/verify-session.js) que le jeton
+  // admin est réellement valide, plutôt que de faire confiance à
+  // sessionStorage seul (qui pourrait être bricolé depuis les DevTools).
+  async function checkAccess() {
+    const admin = await stringzVerifyAdminSession();
     document.getElementById('denied').classList.toggle('show', !admin);
     document.getElementById('admin-content').classList.toggle('show', admin);
     return admin;
@@ -657,17 +660,17 @@
       card.dataset.id = p.id;
       card.innerHTML = `
         <div class="model-icon-col">
-          <div class="model-icon-btn" onclick="openIconModal(${p.id})">${p.iconImage ? `<img src="${p.iconImage}" alt="">` : (p.icon || '❔')}</div>
+          <div class="model-icon-btn" onclick="openIconModal(${p.id})">${p.iconImage ? `<img src="${stringzEscapeHtml(p.iconImage)}" alt="">` : (stringzEscapeHtml(p.icon) || '❔')}</div>
           <small>Icône</small>
         </div>
 
         <div class="model-fields">
           <div class="field-label">Nom</div>
-          <input type="text" value="${p.name}" onchange="updateField(${p.id}, 'name', this.value)">
+          <input type="text" value="${stringzEscapeHtml(p.name)}" onchange="updateField(${p.id}, 'name', this.value)">
           <div class="field-row">
             <div>
               <div class="field-label">Catégorie</div>
-              <input type="text" value="${p.category}" onchange="updateField(${p.id}, 'category', this.value)">
+              <input type="text" value="${stringzEscapeHtml(p.category)}" onchange="updateField(${p.id}, 'category', this.value)">
             </div>
             <div>
               <div class="field-label">Prix (€)</div>
@@ -862,13 +865,13 @@
         card.dataset.id = w.id;
         card.innerHTML = `
           <div class="model-icon-col">
-            <div class="model-icon-btn" style="cursor:default;">${w.icon || '🧵'}</div>
-            <small>${w.dateLabel || w.date || ''}</small>
+            <div class="model-icon-btn" style="cursor:default;">${stringzEscapeHtml(w.icon) || '🧵'}</div>
+            <small>${stringzEscapeHtml(w.dateLabel || w.date || '')}</small>
           </div>
 
           <div class="workshop-summary">
-            <div class="ws-title">${w.title || '(sans titre)'}</div>
-            <div class="ws-short">${w.shortDescription || ''}</div>
+            <div class="ws-title">${stringzEscapeHtml(w.title) || '(sans titre)'}</div>
+            <div class="ws-short">${stringzEscapeHtml(w.shortDescription || '')}</div>
             <div class="ws-meta-row">
               <div class="ws-meta"><div class="field-label">Prix</div>${(w.price ?? 0)} €</div>
               <div class="ws-meta"><div class="field-label">Places</div>${w.places ?? '—'}</div>
@@ -1034,7 +1037,7 @@
     }
     container.innerHTML = diapoPhotos.map((src, i) => `
       <div class="image-thumb">
-        <img src="${src}" alt="">
+        <img src="${stringzEscapeHtml(src)}" alt="">
         <div class="del-img" title="Supprimer" onclick="deleteDiapoImage(${i})">✕</div>
         <label class="replace-img" title="Remplacer">
           🔄
@@ -1090,12 +1093,14 @@
   });
 
   // ---- Démarrage ----
-  if (checkAccess()) {
-    products = stringzLoadProducts();
-    renderModels();
-    workshops = stringzLoadWorkshops();
-    renderWorkshops();
-  }
+  (async function initAdminPage() {
+    if (await checkAccess()) {
+      products = stringzLoadProducts();
+      renderModels();
+      workshops = stringzLoadWorkshops();
+      renderWorkshops();
+    }
+  })();
 
   // Se met à jour si modifié depuis un autre onglet (ex: boutique.html)
   stringzOnProductsChanged(() => {
