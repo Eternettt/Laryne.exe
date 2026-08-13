@@ -115,7 +115,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    overflow: hidden;
   }
+  .model-icon-btn img { width: 100%; height: 100%; object-fit: cover; }
   .model-icon-btn:hover { border-color: #7a2350; }
   .model-icon-col small { display: block; margin-top: 6px; font-size: 10px; color: #b06084; }
 
@@ -357,6 +359,58 @@
   .icon-choice { font-size: 22px; text-align: center; padding: 8px 0; border-radius: 6px; cursor: pointer; background: #fff; border: 1px solid #eee; }
   .icon-choice:hover { border-color: #ea8fb8; background: #fdeaf2; }
 
+  .icon-preview-row { display: flex; justify-content: center; margin-bottom: 16px; }
+  .icon-preview-circle {
+    width: 88px; height: 88px;
+    border-radius: 50%;
+    background: #fff;
+    border: 3px solid #ea8fb8;
+    font-size: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .icon-preview-circle img { width: 100%; height: 100%; object-fit: cover; }
+
+  .icon-photo-btn {
+    display: block;
+    width: 100%;
+    text-align: center;
+    padding: 9px;
+    margin-bottom: 8px;
+    background: #fff;
+    border: 1px dashed #ea8fb8;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: bold;
+    color: #7a2350;
+    cursor: pointer;
+  }
+  .icon-photo-btn:hover { background: #fdeaf2; }
+
+  .icon-remove-photo-btn {
+    display: block;
+    width: 100%;
+    padding: 8px;
+    margin-bottom: 12px;
+    background: #ffd9d3;
+    color: #a8241a;
+    border: none;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: bold;
+    cursor: pointer;
+  }
+  .icon-remove-photo-btn:hover { background: #ffc0b6; }
+
+  .icon-divider {
+    text-align: center;
+    font-size: 11px;
+    color: #b06084;
+    margin: 4px 0 10px;
+  }
+
   #toast {
     position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
     background: linear-gradient(#c2477a, #7a2350); color: #fff; padding: 10px 18px; border-radius: 6px;
@@ -431,6 +485,26 @@
     <div class="modal-titlebar"><span>Choisir une icône</span><span class="x" onclick="closeIconModal()">✕</span></div>
     <div class="modal-body">
       <div class="icon-grid" id="icon-grid"></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="product-icon-modal">
+  <div class="modal-box">
+    <div class="modal-titlebar"><span>Icône du produit</span><span class="x" onclick="closeProductIconModal()">✕</span></div>
+    <div class="modal-body">
+      <div class="icon-preview-row">
+        <div class="icon-preview-circle" id="product-icon-preview">❔</div>
+      </div>
+
+      <label class="icon-photo-btn">
+        📁 Importer une photo
+        <input type="file" accept="image/*" style="display:none;" onchange="uploadProductIconImage(event)">
+      </label>
+      <button type="button" class="icon-remove-photo-btn" id="product-icon-remove-btn" onclick="removeProductIconImage()" style="display:none;">🗑️ Retirer la photo (revenir à l'émoji)</button>
+
+      <div class="icon-divider">— ou choisis un émoji —</div>
+      <div class="icon-grid" id="product-icon-grid"></div>
     </div>
   </div>
 </div>
@@ -583,7 +657,7 @@
       card.dataset.id = p.id;
       card.innerHTML = `
         <div class="model-icon-col">
-          <div class="model-icon-btn" onclick="openIconModal(${p.id})">${p.icon || '❔'}</div>
+          <div class="model-icon-btn" onclick="openIconModal(${p.id})">${p.iconImage ? `<img src="${p.iconImage}" alt="">` : (p.icon || '❔')}</div>
           <small>Icône</small>
         </div>
 
@@ -644,21 +718,73 @@
 
   function openIconModal(id) {
     iconTargetId = id;
-    const grid = document.getElementById('icon-grid');
+    const p = products.find(x => x.id === id);
+
+    updateProductIconPreview(p);
+
+    const grid = document.getElementById('product-icon-grid');
     grid.innerHTML = '';
     ICON_CHOICES.forEach(icon => {
       const el = document.createElement('div');
       el.className = 'icon-choice';
       el.textContent = icon;
       el.onclick = () => {
-        const p = products.find(x => x.id === iconTargetId);
-        if (p) { p.icon = icon; persist(); renderModels(); }
-        closeIconModal();
+        const prod = products.find(x => x.id === iconTargetId);
+        if (prod) {
+          prod.icon = icon;
+          delete prod.iconImage;
+          persist();
+          renderModels();
+          updateProductIconPreview(prod);
+        }
       };
       grid.appendChild(el);
     });
-    document.getElementById('icon-modal').classList.add('open');
+    document.getElementById('product-icon-modal').classList.add('open');
   }
+  function closeProductIconModal() {
+    document.getElementById('product-icon-modal').classList.remove('open');
+  }
+
+  function updateProductIconPreview(p) {
+    const circle = document.getElementById('product-icon-preview');
+    const removeBtn = document.getElementById('product-icon-remove-btn');
+    if (p && p.iconImage) {
+      circle.innerHTML = `<img src="${p.iconImage}" alt="">`;
+      removeBtn.style.display = 'block';
+    } else {
+      circle.textContent = (p && p.icon) || '❔';
+      removeBtn.style.display = 'none';
+    }
+  }
+
+  function uploadProductIconImage(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const p = products.find(x => x.id === iconTargetId);
+      if (!p) return;
+      p.iconImage = e.target.result;
+      persist();
+      renderModels();
+      updateProductIconPreview(p);
+    };
+    reader.readAsDataURL(file);
+    event.target.value = '';
+  }
+
+  function removeProductIconImage() {
+    const p = products.find(x => x.id === iconTargetId);
+    if (!p) return;
+    delete p.iconImage;
+    persist();
+    renderModels();
+    updateProductIconPreview(p);
+  }
+
+  // ---- Sélecteur d'icône générique (émoji uniquement), utilisé par le
+  // formulaire atelier — ne concerne pas la photo produit ci-dessus.
   function closeIconModal() {
     document.getElementById('icon-modal').classList.remove('open');
   }

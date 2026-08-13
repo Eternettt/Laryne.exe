@@ -447,10 +447,17 @@
 
   @media (max-width: 640px) {
     .pwin { width: 88vw; left: 6vw !important; }
-    #pwin-photos { top: 4vh; }
-    #pwin-size   { top: 33vh; }
-    #pwin-cart   { top: 57vh; }
-    #pwin-note   { top: 78vh; }
+
+    /* Les 4 fenêtres de détail produit (photos / taille / panier / remarque)
+       sont empilées dynamiquement en JS (voir layoutPwinsForMobile) : chacune
+       est positionnée juste sous la précédente, en fonction de sa hauteur
+       réelle. Ça garantit qu'elles ne se chevauchent jamais, quelle que soit
+       la quantité de contenu (nombre de photos, tailles disponibles, etc.).
+       "position: absolute" (et non "fixed") pour qu'on puisse scroller la
+       page si l'empilement dépasse la hauteur de l'écran. */
+    #pwin-photos, #pwin-size, #pwin-cart, #pwin-note {
+      position: absolute;
+    }
 
     /* Ces popups ont leur propre largeur fixe (ID plus prioritaire que .pwin
        ci-dessus) : on la force aussi ici pour ne jamais déborder sur mobile */
@@ -603,6 +610,12 @@
     font-size: 14px;
     box-shadow: 0 2px 5px rgba(0,0,0,0.25);
     z-index: 3;
+    overflow: hidden;
+  }
+  .product-icon-badge img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
   }
 
   /* ==== Popup "Personnaliser le post-it" (sprite / taille / orientation) ==== */
@@ -934,7 +947,7 @@ const POSTIT_MAX = 260;
 
 function productContentHTML(p, stockClass, stockLabel) {
   return `
-    ${p.icon ? `<div class="product-icon-badge">${p.icon}</div>` : ""}
+    ${p.iconImage ? `<div class="product-icon-badge"><img src="${p.iconImage}" alt=""></div>` : (p.icon ? `<div class="product-icon-badge">${p.icon}</div>` : "")}
     <img src="${(p.images && p.images[0]) || p.img}" alt="${p.name}">
     <h3>${p.name}</h3>
     <div class="cat">${p.category}</div>
@@ -1234,15 +1247,40 @@ function openProductWindows(id) {
     // pour repartir systématiquement de la disposition par défaut (CSS).
     el.style.left = "";
     el.style.top = "";
+    // Affiche tout de suite (display: block) pour pouvoir mesurer sa vraie
+    // hauteur juste après (nécessaire à l'empilement mobile ci-dessous).
+    el.classList.add("open");
   });
+
+  layoutPwinsForMobile();
+
   PWIN_IDS.forEach((wid, i) => {
     const el = document.getElementById(wid);
-    el.classList.add("open");
     setTimeout(() => {
       el.classList.add("show");
       playPopupSound();
     }, i * 120);
   });
+}
+
+// Empile verticalement les 4 fenêtres de détail sur mobile, chacune juste
+// sous la précédente selon sa hauteur réelle (mesurée après rendu du
+// contenu), pour qu'elles ne se chevauchent jamais.
+function layoutPwinsForMobile() {
+  if (!window.matchMedia("(max-width: 640px)").matches) return;
+
+  const gap = 28; // marge verticale entre deux fenêtres, en px
+  let cursor = window.scrollY + 12;
+
+  PWIN_IDS.forEach(wid => {
+    const el = document.getElementById(wid);
+    el.style.top = cursor + "px";
+    cursor += el.offsetHeight + gap;
+  });
+
+  // Le body doit être assez haut pour qu'on puisse scroller jusqu'à la
+  // dernière fenêtre si l'empilement dépasse la hauteur de l'écran.
+  document.body.style.minHeight = (cursor + 40) + "px";
 }
 
 function closeProductWindows() {
@@ -1252,6 +1290,7 @@ function closeProductWindows() {
     el.classList.remove("show");
     setTimeout(() => el.classList.remove("open"), 200);
   });
+  document.body.style.minHeight = "";
 }
 
 // -- Photos --
