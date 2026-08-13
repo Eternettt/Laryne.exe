@@ -128,3 +128,63 @@ function stringzOnDiapoChanged(callback) {
     if (e.key === STRINGZ_DIAPO_KEY) callback();
   });
 }
+
+/* ==========================================================================
+   Ateliers (workshops) — gérés depuis admin.html, affichés sur workshop.html
+   ========================================================================== */
+
+const STRINGZ_WORKSHOPS_KEY = 'stringzWorkshopsV1';
+
+const STRINGZ_DEFAULT_WORKSHOPS = [
+  {
+    id: 'upcycling-2026-09-06',
+    icon: '🧵',
+    title: 'Atelier upcycling',
+    date: '2026-09-06', // format AAAA-MM-JJ, sert au filtrage par date
+    dateLabel: '6 septembre 2026',
+    whenLabel: 'le 6 septembre de 14h30 à 17h',
+    location: 'Poésie café, 10 passage Thiéré, Paris, 75011',
+    price: 35,
+    deposit: 20,
+    places: 8,
+    shortDescription: "Ramène tes pièces à custom pour 2h30 d'upcycling, boisson fancy incluse.",
+    description: [
+      "Tu es la bienvenue dans mon premier atelier upcycling &lt;3",
+      "Ramène les pièces que tu ne mets plus et prenons 2h30 de custom pour qu'elles deviennent des pièces ICONIQUES.",
+      "Beaucoup de matériel sera mis à ta disposition et un accompagnement personnalisé en fonction de tes pièces et de tes idées. Ajoute à ça une boisson super fancy composée par notre host de ce jour, Poésie café !"
+    ],
+    note: "&lt;3 Ici tu remplis tes infos et tu me transmets un acompte de 20 euros. Des bisous !"
+  }
+];
+
+// ---- Charge les ateliers (localStorage si présent, sinon valeurs par défaut) ----
+// NB: contrairement aux produits, un tableau VIDE est une valeur valide ici
+// (ça veut dire "l'admin a supprimé tous les ateliers"), donc pas de retour
+// aux valeurs par défaut dans ce cas.
+function stringzLoadWorkshops() {
+  try {
+    const raw = localStorage.getItem(STRINGZ_WORKSHOPS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (e) { /* localStorage indisponible ou données corrompues */ }
+
+  const defaults = JSON.parse(JSON.stringify(STRINGZ_DEFAULT_WORKSHOPS));
+  stringzSaveWorkshops(defaults);
+  return defaults;
+}
+
+// ---- Sauvegarde les ateliers : visible instantanément sur les autres pages ----
+function stringzSaveWorkshops(workshops) {
+  try {
+    localStorage.setItem(STRINGZ_WORKSHOPS_KEY, JSON.stringify(workshops));
+  } catch (e) { /* quota dépassé, etc. */ }
+}
+
+// ---- Prévient les autres onglets/pages ouverts en même temps ----
+function stringzOnWorkshopsChanged(callback) {
+  window.addEventListener('storage', (e) => {
+    if (e.key === STRINGZ_WORKSHOPS_KEY) callback();
+  });
+}

@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lettre de la culotte légère - Laryne.exe</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: Arial, Helvetica, sans-serif;
+    background: linear-gradient(135deg, #f9c6dd, #e0729f);
+    background-attachment: fixed;
+    color: #7a2350;
+    min-height: 100vh;
+  }
+
+  header {
+    background: linear-gradient(#c2477a, #7a2350);
+    border-bottom: 1px solid #5a1a38;
+    padding: 12px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+  }
+  header h1 {
+    font-size: 20px;
+    color: #fff;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+    cursor: pointer;
+  }
+  header h1:hover { text-decoration: underline; }
+
+  #back-btn {
+    padding: 8px 14px;
+    background: linear-gradient(#f0f0f0, #c0c0c0);
+    color: #7a2350;
+    border: 1px solid #888;
+    cursor: pointer;
+    font-size: 14px;
+    border-radius: 6px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  }
+  #back-btn:hover { background: linear-gradient(#ffffff, #d8d8d8); }
+
+  main {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 20px 60px;
+    gap: 24px;
+  }
+
+  #info-card, #auth-card {
+    width: 100%;
+    max-width: 460px;
+    background: #fdf3f7;
+    border-radius: 10px;
+    box-shadow: 0 12px 30px rgba(0,0,0,0.35);
+    overflow: hidden;
+  }
+
+  #info-card { padding: 28px 26px; }
+  #info-card h2 { font-size: 22px; margin-bottom: 4px; color: #7a2350; }
+  #info-card .tagline {
+    font-size: 14px;
+    font-style: italic;
+    color: #9a5c78;
+    margin-bottom: 16px;
+  }
+  #info-card ul {
+    list-style: none;
+    margin: 0 0 16px 0;
+    padding: 0;
+  }
+  #info-card ul li {
+    font-size: 14px;
+    line-height: 1.6;
+    padding-left: 22px;
+    position: relative;
+  }
+  #info-card ul li::before {
+    content: "🎀";
+    position: absolute;
+    left: 0;
+    top: 0;
+  }
+  #info-card .price-note {
+    background: #f6c3dc;
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-size: 13px;
+    text-align: center;
+  }
+
+  .panel { padding: 26px 26px 30px 26px; }
+
+  .field { margin-bottom: 16px; }
+  .field label {
+    display: block;
+    font-size: 13px;
+    font-weight: bold;
+    margin-bottom: 6px;
+    color: #7a2350;
+  }
+  .field input[type="text"] {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #ea8fb8;
+    border-radius: 6px;
+    font-size: 14px;
+    background: #fff;
+    color: #4a1a30;
+  }
+  .field input:focus {
+    outline: none;
+    border-color: #c2477a;
+    box-shadow: 0 0 0 2px rgba(194,71,122,0.2);
+  }
+  .field .error {
+    color: #c0392b;
+    font-size: 12px;
+    margin-top: 4px;
+    display: none;
+  }
+  .field.invalid input { border-color: #c0392b; }
+  .field.invalid .error { display: block; }
+
+  .radio-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .radio-option {
+    flex: 1 1 calc(50% - 8px);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid #ea8fb8;
+    border-radius: 6px;
+    background: #fff;
+    cursor: pointer;
+    font-size: 13px;
+    color: #4a1a30;
+  }
+  .radio-option:has(input:checked) {
+    border-color: #c2477a;
+    background: #fbe4ef;
+  }
+  .radio-option input { accent-color: #c2477a; }
+  .radio-option.other-option {
+    flex: 1 1 100%;
+  }
+  .radio-option.other-option input[type="text"] {
+    flex: 1;
+    padding: 6px 8px;
+    border: 1px solid #ea8fb8;
+    border-radius: 5px;
+    font-size: 13px;
+  }
+
+  .submit-btn {
+    width: 100%;
+    padding: 12px;
+    margin-top: 6px;
+    background: linear-gradient(#c2477a, #7a2350);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 15px;
+    font-weight: bold;
+    cursor: pointer;
+  }
+  .submit-btn:hover { background: linear-gradient(#d1588c, #8a2a5c); }
+  .submit-btn:active { background: linear-gradient(#7a2350, #c2477a); }
+
+  #toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(#c2477a, #7a2350);
+    color: #fff;
+    padding: 10px 18px;
+    border-radius: 6px;
+    font-size: 14px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+    z-index: 30;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    text-align: center;
+    max-width: 90vw;
+  }
+  #toast.show { opacity: 1; }
+  #toast.error { background: linear-gradient(#c0392b, #7a1f18); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1 onclick="window.location.href='index.html'">Laryne.exe</h1>
+  <button id="back-btn" onclick="window.location.href='index.html'">← Retour</button>
+</header>
+
+<main>
+  <div id="info-card">
+    <h2>La lettre de la culotte légère 💌</h2>
+    <p class="tagline">Reçois ton périodique culotté !</p>
+    <p style="font-size:14px; margin-bottom:10px;">Dans la lettre de la culotte légère tu trouveras :</p>
+    <ul>
+      <li>la culotte du mois à ta taille</li>
+      <li>une lettre sur l'histoire des courtisanes à Paris</li>
+      <li>des échantillons de tissus du mois</li>
+      <li>des stickers avec les nouveaux modèles du mois</li>
+      <li>une lettre avec ma newsletter</li>
+      <li>et plein d'autres surprises</li>
+    </ul>
+    <div class="price-note">
+      Ici tu remplis tes infos pour que je puisse t'envoyer ta lettre !<br>
+      La lettre est au prix de 30 euros + frais de port (je fais les remises en main propre sur Paris).
+    </div>
+  </div>
+
+  <div id="auth-card">
+    <div class="panel">
+      <form id="mailclub-form" novalidate onsubmit="return handleMailClubSubmit(event)">
+        <div class="field" id="mc-period-field">
+          <label>Tu veux souscrire pour quelle période ?</label>
+          <div class="radio-group">
+            <label class="radio-option">
+              <input type="radio" name="mc-period" value="1 mois" onchange="toggleOtherPeriod()"> 1 mois
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="mc-period" value="3 mois" onchange="toggleOtherPeriod()"> 3 mois
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="mc-period" value="6 mois" onchange="toggleOtherPeriod()"> 6 mois
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="mc-period" value="9 mois" onchange="toggleOtherPeriod()"> 9 mois
+            </label>
+            <label class="radio-option other-option">
+              <input type="radio" name="mc-period" value="autre" id="mc-period-other-radio" onchange="toggleOtherPeriod()"> Autre :
+              <input type="text" id="mc-period-other" placeholder="précise ici" onfocus="selectOtherPeriod()">
+            </label>
+          </div>
+          <div class="error">Merci de choisir une période.</div>
+        </div>
+
+        <div class="field" id="mc-name-field">
+          <label for="mc-name">Quel est ton nom et ton prénom ?</label>
+          <input type="text" id="mc-name" placeholder="Ton nom et prénom">
+          <div class="error">Merci d'entrer ton nom et prénom.</div>
+        </div>
+
+        <div class="field" id="mc-contact-field">
+          <label for="mc-contact">Comment je peux te contacter ? (mail, numéro, insta ?)</label>
+          <input type="text" id="mc-contact" placeholder="ton mail, numéro ou @insta">
+          <div class="error">Merci d'indiquer un moyen de te contacter.</div>
+        </div>
+
+        <div class="field" id="mc-address-field">
+          <label for="mc-address">Donne-moi ton adresse</label>
+          <input type="text" id="mc-address" placeholder="Ton adresse postale">
+          <div class="error">Merci d'entrer ton adresse.</div>
+        </div>
+
+        <button type="submit" class="submit-btn">Envoyer ma demande</button>
+      </form>
+    </div>
+  </div>
+</main>
+
+<div id="toast"></div>
+
+<script>
+  function setInvalid(fieldId, invalid) {
+    document.getElementById(fieldId).classList.toggle('invalid', invalid);
+  }
+
+  let toastTimeout;
+  function showToast(msg, isError) {
+    const toast = document.getElementById('toast');
+    toast.textContent = msg;
+    toast.classList.toggle('error', !!isError);
+    toast.classList.add('show');
+    clearTimeout(toastTimeout);
+    toastTimeout = setTimeout(() => toast.classList.remove('show'), 3200);
+  }
+
+  function selectOtherPeriod() {
+    document.getElementById('mc-period-other-radio').checked = true;
+  }
+
+  function toggleOtherPeriod() {
+    const otherChecked = document.getElementById('mc-period-other-radio').checked;
+    document.getElementById('mc-period-other').disabled = !otherChecked;
+  }
+  toggleOtherPeriod();
+
+  function handleMailClubSubmit(event) {
+    event.preventDefault();
+    const periodChoice = document.querySelector('input[name="mc-period"]:checked');
+    let period = periodChoice ? periodChoice.value : '';
+    if (period === 'autre') {
+      period = document.getElementById('mc-period-other').value.trim();
+    }
+    const name = document.getElementById('mc-name').value.trim();
+    const contact = document.getElementById('mc-contact').value.trim();
+    const address = document.getElementById('mc-address').value.trim();
+
+    const periodValid = period.length > 0;
+    const nameValid = name.length > 0;
+    const contactValid = contact.length > 0;
+    const addressValid = address.length > 0;
+
+    setInvalid('mc-period-field', !periodValid);
+    setInvalid('mc-name-field', !nameValid);
+    setInvalid('mc-contact-field', !contactValid);
+    setInvalid('mc-address-field', !addressValid);
+
+    if (!periodValid || !nameValid || !contactValid || !addressValid) {
+      showToast('Merci de corriger les champs en rouge.', true);
+      return false;
+    }
+
+    const subject = encodeURIComponent('Abonnement - La lettre de la culotte légère');
+    const body = encodeURIComponent(
+      `Période souhaitée : ${period}\n` +
+      `Nom / prénom : ${name}\n` +
+      `Contact : ${contact}\n` +
+      `Adresse : ${address}\n\n` +
+      `Lettre à 30€ + frais de port (remise en main propre possible sur Paris).`
+    );
+
+    showToast('Ta messagerie va s\'ouvrir pour finaliser l\'envoi ✉️');
+    setTimeout(() => {
+      window.location.href = `mailto:titinoudupre@gmail.com?subject=${subject}&body=${body}`;
+    }, 600);
+
+    return false;
+  }
+</script>
+
+</body>
+</html>
