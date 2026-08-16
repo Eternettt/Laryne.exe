@@ -1,8 +1,15 @@
 {
   "name": "stringz-exe",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "create-admin": "node scripts/create-admin.js"
+  },
   "dependencies": {
-    "stripe": "^16.0.0"
+    "stripe": "^16.0.0",
+    "@vercel/postgres": "^0.10.0"
   }
 }

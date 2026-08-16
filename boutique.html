@@ -898,18 +898,23 @@
 
 <script src="shared-data.js"></script>
 <script>
-// ---- Données produits : chargées depuis le stockage partagé du site ----
-// (modifiables depuis admin.html ou le panneau Gestion ci-dessous ;
-//  toute modification est visible sur tout le site après rechargement)
-let products = stringzLoadProducts();
+// ---- Données produits : chargées depuis la base de données (source de
+// vérité serveur, voir /api/products) — modifiables uniquement depuis le
+// panneau Gestion ci-dessous (appelle /api/admin/products, vérifié
+// admin côté serveur à chaque requête). Voir loadProductsFromServer()
+// appelée au démarrage, tout en bas de ce script.
+let products = [];
+
+async function loadProductsFromServer() {
+  products = await stringzFetchProducts();
+  // Génère 3 photos et une liste de tailles pour chaque produit (démo)
+  products.forEach(p => {
+    p.images = [1, 2, 3].map(n => `https://placehold.co/500x400?text=${encodeURIComponent(p.name + ' - Vue ' + n)}`);
+    p.sizes = ["XS", "S", "M", "L", "XL"];
+  });
+}
 
 let cart = {}; // { productId: quantity }
-
-// Génère 3 photos et une liste de tailles pour chaque produit (démo)
-products.forEach(p => {
-  p.images = [1, 2, 3].map(n => `https://placehold.co/500x400?text=${encodeURIComponent(p.name + ' - Vue ' + n)}`);
-  p.sizes = ["XS", "S", "M", "L", "XL"];
-});
 
 // État de la fenêtre de détail produit
 const remarks = {};      // { productId: texte de la remarque }
@@ -947,7 +952,7 @@ const POSTIT_MAX = 260;
 
 function productContentHTML(p, stockClass, stockLabel) {
   return `
-    ${p.iconImage ? `<div class="product-icon-badge"><img src="${stringzEscapeHtml(p.iconImage)}" alt=""></div>` : (p.icon ? `<div class="product-icon-badge">${stringzEscapeHtml(p.icon)}</div>` : "")}
+    ${(typeof p.icon === 'string' && p.icon.startsWith('data:image')) ? `<div class="product-icon-badge"><img src="${stringzEscapeHtml(p.icon)}" alt=""></div>` : (p.icon ? `<div class="product-icon-badge">${stringzEscapeHtml(p.icon)}</div>` : "")}
     <img src="${stringzEscapeHtml((p.images && p.images[0]) || p.img)}" alt="${stringzEscapeHtml(p.name)}">
     <h3>${stringzEscapeHtml(p.name)}</h3>
     <div class="cat">${stringzEscapeHtml(p.category)}</div>
@@ -1034,10 +1039,6 @@ function dropCard(card) {
 }
 
 function renderProducts() {
-  // Persiste l'état courant : rend les modifications visibles sur tout le
-  // site (admin.html, autres onglets...) sans action supplémentaire.
-  stringzSaveProducts(products);
-
   const search = document.getElementById("search").value.toLowerCase();
   const category = document.getElementById("category-filter").value;
   const sort = document.getElementById("sort").value;
@@ -1187,22 +1188,10 @@ async function checkout() {
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || "Erreur lors de la création du paiement.");
 
-    // Mémorise le contenu du panier pour pouvoir l'afficher sur la page de
-    // remerciement au retour de Stripe (voir success.html / shared-data.js).
-    let email = '';
-    try {
-      const userJson = localStorage.getItem('stringzUser');
-      if (userJson) email = JSON.parse(userJson).email || '';
-    } catch (e) { /* ignore */ }
-
-    const items = Object.entries(cart).map(([id, qty]) => {
-      const product = products.find(p => p.id === Number(id));
-      return product ? { name: product.name, qty, unitPrice: product.price } : null;
-    }).filter(Boolean);
-    const total = items.reduce((sum, it) => sum + it.unitPrice * it.qty, 0);
-
-    stringzSetPendingOrder({ source: 'boutique', items, total, email });
-
+    // La commande existe déjà en base (statut "pending") côté serveur —
+    // success.html la retrouvera après paiement via l'identifiant de
+    // session Stripe (voir /api/orders/by-session.js), pas besoin de la
+    // recopier ici.
     window.location.href = data.url; // redirige vers la vraie page de paiement Stripe
   } catch (err) {
     console.error(err);
@@ -1395,14 +1384,13 @@ const MENU_PWIN_IDS = ["pwin-image-menu", "pwin-model-picker", "pwin-new-model"]
 
 // ---- Accès admin ----
 // Fermé par défaut (fail-closed) tant que la vérification serveur n'a pas
-// répondu — voir initAdminAccess() plus bas, qui interroge
-// /api/verify-session.js. Il n'y a plus d'interrupteur "ADMIN_MODE" en dur
-// dans le code : c'était une porte dérobée permettant de s'octroyer les
-// droits admin en éditant ce fichier JS.
+// répondu — voir initAdminAccess() plus bas, qui interroge /api/auth/me
+// (cookie de session httpOnly, rôle revérifié en base à chaque appel).
 let isAdmin = false;
 
 async function initAdminAccess() {
-  isAdmin = await stringzVerifyAdminSession();
+  const user = await stringzMe();
+  isAdmin = !!(user && user.role === 'admin');
   updateAdminUI();
   if (isAdmin && document.getElementById("pwin-admin").classList.contains("open")) {
     renderAdminList();
@@ -1603,20 +1591,34 @@ function handlePostitUpload(event) {
   reader.readAsDataURL(file);
 }
 
-function updateProductField(id, field, rawValue) {
+async function updateProductField(id, field, rawValue) {
   const p = products.find(x => x.id === id);
   if (!p) return;
 
+  const patch = {};
   if (field === "price") {
-    p.price = Math.max(0, parseFloat(rawValue)) || 0;
+    patch.price = Math.max(0, parseFloat(rawValue)) || 0;
   } else if (field === "stock") {
-    p.stock = Math.max(0, parseInt(rawValue, 10)) || 0;
+    patch.stock = Math.max(0, parseInt(rawValue, 10)) || 0;
   } else if (field === "name") {
-    p.name = rawValue.trim() || p.name;
+    patch.name = rawValue.trim() || p.name;
   } else if (field === "category") {
-    p.category = rawValue.trim() || p.category;
-    addCategoryOptionIfNew(p.category);
+    patch.category = rawValue.trim() || p.category;
   }
+
+  // Écrit d'abord côté serveur (seule source de vérité, vérifiée admin) —
+  // on ne met à jour l'affichage local qu'une fois la modification confirmée.
+  const result = await stringzAdminUpdateProduct(id, patch);
+  if (!result.ok) {
+    showToast(result.data.error || "La modification n'a pas pu être enregistrée.", true);
+    await loadProductsFromServer();
+    renderProducts();
+    if (document.getElementById("pwin-admin").classList.contains("open")) renderAdminList();
+    return;
+  }
+
+  Object.assign(p, patch);
+  if (field === "category") addCategoryOptionIfNew(p.category);
 
   renderProducts();
   showToast("Article mis à jour.");
@@ -1700,21 +1702,14 @@ function handleCreateModel(event) {
     return false;
   }
 
-  const newId = products.length ? Math.max(...products.map(p => p.id)) + 1 : 1;
-
-  function finalizeCreate(imageUrl) {
+  async function finalizeCreate(imageUrl) {
     const img = imageUrl || `https://placehold.co/500x400?text=${encodeURIComponent(name)}`;
-    const newProduct = {
-      id: newId,
-      name,
-      category,
-      price,
-      stock,
-      img,
-      images: [img],
-      sizes: ["XS", "S", "M", "L", "XL"]
-    };
-    products.push(newProduct);
+    const result = await stringzAdminCreateProduct({ name, category, price, stock, icon: '', images: [img] });
+    if (!result.ok) {
+      showToast(result.data.error || "Impossible de créer ce produit.", true);
+      return;
+    }
+    await loadProductsFromServer();
     addCategoryOptionIfNew(category);
     renderProducts();
     closeAllMenuPopups();
@@ -1823,21 +1818,14 @@ function saveRemark() {
 })();
 
 // ---- Démarrage ----
-initCategories();
-renderProducts();
-updateCartUI();
-updateAdminUI();
-initAdminAccess(); // revérifie l'accès admin auprès du serveur (asynchrone)
-
-// Si les produits sont modifiés ailleurs (admin.html, un autre onglet...),
-// on recharge et on réaffiche automatiquement, sans avoir à rafraîchir la page.
-stringzOnProductsChanged(() => {
-  products = stringzLoadProducts();
+(async function initBoutique() {
+  await loadProductsFromServer();
+  initCategories();
   renderProducts();
-  if (isAdmin && document.getElementById("pwin-admin").classList.contains("open")) {
-    renderAdminList();
-  }
-});
+  updateCartUI();
+  updateAdminUI();
+  await initAdminAccess(); // revérifie l'accès admin auprès du serveur
+})();
 </script>
 
 <footer id="stringz-legal-footer">

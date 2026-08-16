@@ -1054,21 +1054,9 @@ async function goToPayment() {
       throw new Error(data.error || `Erreur serveur (${response.status})`);
     }
 
-    // Mémorise un récapitulatif (affichage uniquement) pour la page de
-    // remerciement — le montant réellement facturé est celui recalculé par
-    // le serveur dans api/create-checkout-session.js, pas celui-ci.
-    let email = '';
-    try {
-      const userJson = localStorage.getItem('stringzUser');
-      if (userJson) email = JSON.parse(userJson).email || '';
-    } catch (e) { /* ignore */ }
-    stringzSetPendingOrder({
-      source: 'commande_perso',
-      items: [{ name: `Création sur mesure (taille ${order.size || '-'})`, qty: 1, unitPrice: order.total || 0 }],
-      total: order.total || 0,
-      email,
-    });
-
+    // La commande existe déjà en base (statut "pending") côté serveur —
+    // success.html la retrouvera après paiement via l'identifiant de
+    // session Stripe (voir /api/orders/by-session.js).
     window.location.href = data.url; // vraie page de paiement Stripe
   } catch (err) {
     console.error(err);

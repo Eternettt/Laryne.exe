@@ -506,19 +506,6 @@
 
 <audio id="popup-sound-el" src="popup-sound.mp3" preload="auto"></audio>
 
-<!-- Écran de ré-accès admin, affiché à l'ouverture du site si cet appareil
-     s'est déjà connecté en admin auparavant (voir shared-data.js) -->
-<div id="admin-welcome-overlay">
-  <div id="admin-welcome-card">
-    <h2>Heureux de vous revoir <span id="admin-welcome-name"></span> 👋</h2>
-    <p>Entrez votre code admin pour accéder au site en tant qu'administrateur.</p>
-    <input type="password" id="admin-welcome-code" placeholder="Code admin" aria-label="Code admin" autocomplete="current-password">
-    <div id="admin-welcome-error">Code incorrect.</div>
-    <button id="admin-welcome-submit" class="admin-welcome-btn admin-welcome-btn-primary">Accéder en tant qu'admin</button>
-    <button id="admin-welcome-skip" class="admin-welcome-btn admin-welcome-btn-secondary">Continuer en tant qu'utilisateur</button>
-  </div>
-</div>
-
 <header>
   <h1>Laryne.exe</h1>
   <button id="menu-btn">☰ Menu</button>
@@ -645,71 +632,19 @@
 
 <script src="shared-data.js"></script>
 <script>
-  // Le popup Admin n'existe que pour les administrateurs : on le retire
-  // complètement du DOM sinon, AVANT que le script principal ne liste les
-  // popups (pour ne pas fausser le calcul d'ouverture/tri/positionnement).
-  function stringzRemoveAdminPopupIfNeeded() {
-    if (!stringzIsAdmin()) {
+  // Le popup Admin n'existe que pour les personnes réellement connectées en
+  // tant qu'admin (revérifié côté serveur via /api/auth/me — cookie de
+  // session httpOnly, jamais un statut local) : on le retire du DOM sinon.
+  // La session admin est désormais un vrai cookie de connexion qui persiste
+  // plusieurs jours (voir lib/session.js) : il n'y a donc plus besoin de
+  // l'écran "Heureux de vous revoir" avec ressaisie rapide du mot de passe —
+  // une fois connecté·e depuis connexion.html, ça reste valable.
+  (async function initAdminPopup() {
+    const user = await stringzMe();
+    const isAdmin = !!(user && user.role === 'admin');
+    if (!isAdmin) {
       const popup6 = document.getElementById('popup6');
       if (popup6) popup6.remove();
-    }
-  }
-
-  (function () {
-    const overlay = document.getElementById('admin-welcome-overlay');
-    const codeInput = document.getElementById('admin-welcome-code');
-    const errorEl = document.getElementById('admin-welcome-error');
-    const submitBtn = document.getElementById('admin-welcome-submit');
-    const skipBtn = document.getElementById('admin-welcome-skip');
-
-    // On ne propose le ré-accès admin que si :
-    // - cet appareil s'est déjà connecté en admin auparavant (localStorage)
-    // - on n'est pas déjà admin sur CETTE session (sessionStorage)
-    // - on n'a pas déjà répondu à l'écran depuis l'ouverture de cet onglet
-    const alreadyAnswered = sessionStorage.getItem('stringzAdminPromptDone') === 'true';
-
-    if (stringzWasAdminBefore() && !stringzIsAdmin() && !alreadyAnswered) {
-      const nameEl = document.getElementById('admin-welcome-name');
-      if (nameEl) nameEl.textContent = STRINGZ_ADMIN_NAME;
-      overlay.classList.add('show');
-      codeInput.focus();
-
-      function closeOverlay() {
-        sessionStorage.setItem('stringzAdminPromptDone', 'true');
-        overlay.classList.remove('show');
-        stringzRemoveAdminPopupIfNeeded();
-      }
-
-      submitBtn.addEventListener('click', async () => {
-        // On ne connaît plus l'email ici : on le lit depuis la session déjà
-        // mémorisée (stringzUser), posée lors de la précédente connexion
-        // admin réussie sur connexion.html.
-        let email = '';
-        try {
-          const userJson = localStorage.getItem('stringzUser');
-          if (userJson) email = (JSON.parse(userJson).email || '').trim();
-        } catch (e) { /* ignore */ }
-
-        submitBtn.disabled = true;
-        const result = email ? await stringzApiLogin(email, codeInput.value) : { ok: false };
-        submitBtn.disabled = false;
-
-        if (result.ok) {
-          closeOverlay();
-        } else {
-          errorEl.classList.add('show');
-          codeInput.value = '';
-          codeInput.focus();
-        }
-      });
-
-      codeInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') submitBtn.click();
-      });
-
-      skipBtn.addEventListener('click', closeOverlay);
-    } else {
-      stringzRemoveAdminPopupIfNeeded();
     }
   })();
 </script>

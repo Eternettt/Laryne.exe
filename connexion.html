@@ -267,61 +267,18 @@
     toastTimeout = setTimeout(() => toast.classList.remove('show'), 2500);
   }
 
-  // ⚠️ Petit annuaire de démo, EN MÉMOIRE UNIQUEMENT (perdu à chaque
-  // rechargement de page) : il n'y a pas de vraie base de données de
-  // comptes utilisateurs pour l'instant. Voir LISEZ-MOI.md / le rapport
-  // d'audit : un vrai site marchand a besoin d'un vrai backend de comptes
-  // (mots de passe hashés, stockés en base de données), pas seulement d'une
-  // variable JavaScript.
-  const registeredUsers = {};
-
-  // Le compte admin n'est plus vérifié ici : handleLogin() interroge
-  // désormais /api/login, qui compare le mot de passe à un hash stocké
-  // côté serveur (voir api/login.js et shared-data.js).
-
-  // Helper to store user session
-  // Sécurité : on ne mémorise dans localStorage (persistant) que l'identité
-  // (email / nom), jamais le statut admin. Le statut admin passe uniquement
-  // par stringzSetAdmin(), qui l'écrit dans sessionStorage (voir shared-data.js) :
-  // il ne survit donc pas à la fermeture du navigateur/onglet, même si
-  // l'utilisateur reste "connecté" par ailleurs.
-  function storeUserSession(email, name, role) {
-    const userData = {
-      email: email,
-      name: name || email.split('@')[0]
-    };
-    localStorage.setItem('stringzUser', JSON.stringify(userData));
-    stringzSetAdmin(role === 'admin');
-    // On mémorise durablement que ce compte/appareil a déjà utilisé l'accès
-    // admin, pour pouvoir proposer un ré-accès rapide sur index.html.
-    if (role === 'admin') stringzMarkWasAdmin();
-  }
-
-  // Helper to clear session
-  function clearUserSession() {
-    localStorage.removeItem('stringzUser');
-    stringzSetAdmin(false);
-  }
-
-  // Helper to load and show user panel if logged in
-  function checkAndShowUserSession() {
-    const userJson = localStorage.getItem('stringzUser');
-    if (userJson) {
-      try {
-        const user = JSON.parse(userJson);
-        // Le rôle affiché reflète le statut admin RÉEL de cette session
-        // (sessionStorage), jamais une valeur mémorisée à long terme.
-        const isAdmin = stringzIsAdmin();
-        document.getElementById('user-name').textContent = user.name;
-        document.getElementById('user-email').textContent = user.email;
-        document.getElementById('user-role').textContent = isAdmin ? 'Administrateur' : 'Utilisateur';
-        document.getElementById('auth-card').style.display = 'none';
-        document.getElementById('user-panel').style.display = 'block';
-      } catch (e) {
-        console.error('Failed to parse user data', e);
-        clearUserSession();
-      }
+  // Helper to load and show user panel if logged in — interroge le serveur
+  // (cookie de session httpOnly, voir /api/auth/me), jamais une copie locale.
+  async function checkAndShowUserSession() {
+    const user = await stringzMe();
+    if (user) {
+      document.getElementById('user-name').textContent = user.name || user.email.split('@')[0];
+      document.getElementById('user-email').textContent = user.email;
+      document.getElementById('user-role').textContent = user.role === 'admin' ? 'Administrateur' : 'Utilisateur';
+      document.getElementById('auth-card').style.display = 'none';
+      document.getElementById('user-panel').style.display = 'block';
     }
+    return user;
   }
 
   async function handleLogin(event) {
@@ -340,33 +297,21 @@
       return false;
     }
 
-    // Tentative de connexion admin : vérifiée côté serveur (voir api/login.js),
-    // jamais en comparant le mot de passe dans ce fichier.
     const submitBtn = document.querySelector('#login-form .submit-btn');
     submitBtn.disabled = true;
-    const adminResult = await stringzApiLogin(email, password);
+    const result = await stringzLogin(email, password);
     submitBtn.disabled = false;
 
-    if (adminResult.ok) {
-      storeUserSession(email, adminResult.name, 'admin');
-      showToast('Connexion admin réussie, bienvenue !');
-      setTimeout(() => { window.location.href = 'index.html'; }, 900);
-      return false;
-    }
-
-    // Sinon, on regarde dans l'annuaire de démo (compte "utilisateur" classique).
-    const userData = registeredUsers[email];
-    if (userData && userData.password === password) {
-      storeUserSession(email, userData.name, 'user');
+    if (result.ok) {
       showToast('Connexion réussie, bienvenue !');
       setTimeout(() => { window.location.href = 'index.html'; }, 900);
     } else {
-      showToast('Identifiants incorrects.', true);
+      showToast(result.error || 'Identifiants incorrects.', true);
     }
     return false;
   }
 
-  function handleSignup(event) {
+  async function handleSignup(event) {
     event.preventDefault();
     const name = document.getElementById('signup-name').value.trim();
     const email = document.getElementById('signup-email').value.trim();
@@ -388,86 +333,75 @@
       return false;
     }
 
-    // Store new user
-    registeredUsers[email] = { name, password };
-    // Auto login the newly created account
-    storeUserSession(email, name, 'user');
-    showToast('Compte créé et conecté !');
-    // Go to home
-    setTimeout(() => { window.location.href = 'index.html'; }, 900);
+    const submitBtn = document.querySelector('#signup-form .submit-btn');
+    submitBtn.disabled = true;
+    const result = await stringzSignup(email, password, name);
+    submitBtn.disabled = false;
+
+    if (result.ok) {
+      showToast('Compte créé et connecté !');
+      setTimeout(() => { window.location.href = 'index.html'; }, 900);
+    } else {
+      showToast(result.error || "Erreur lors de la création du compte.", true);
+    }
     return false;
   }
 
   // Logout handler
-  function handleLogout() {
-    clearUserSession();
+  async function handleLogout() {
+    await stringzLogout();
     showToast('Vous avez été déconnecté.');
-    // Reset forms
     document.getElementById('login-form').reset();
     document.getElementById('signup-form').reset();
-    // Switch back to login tab
     switchTab('login');
-    // Show auth card, hide user panel
     document.getElementById('auth-card').style.display = 'block';
     document.getElementById('user-panel').style.display = 'none';
   }
 
-  // Affiche l'historique d'achats mémorisé localement (voir stringzGetPurchases
-  // dans shared-data.js — stocké uniquement dans ce navigateur, voir
-  // l'avertissement en haut de shared-data.js).
-  function handleViewPurchases() {
-    let email = '';
-    try {
-      const userJson = localStorage.getItem('stringzUser');
-      if (userJson) email = JSON.parse(userJson).email || '';
-    } catch (e) { /* ignore */ }
-
-    const list = stringzGetPurchases(email);
+  // Affiche l'historique de commandes réel, depuis la base de données
+  // (voir /api/orders — filtré côté serveur sur la personne connectée,
+  // impossible de voir les commandes de quelqu'un d'autre).
+  async function handleViewPurchases() {
     const container = document.getElementById('purchases-list');
-
-    if (!list.length) {
-      container.innerHTML = "<p>Aucun achat enregistré sur cet appareil pour l'instant.</p>";
-    } else {
-      container.innerHTML = list.map(order => {
-        const date = new Date(order.date).toLocaleDateString('fr-FR');
-        const itemsHtml = (order.items || []).map(it =>
-          `<div>${stringzEscapeHtml(it.name)}${it.qty > 1 ? ' × ' + it.qty : ''} — ${(it.unitPrice * it.qty).toFixed(2).replace('.', ',')} €</div>`
-        ).join('');
-        return `<div style="margin-bottom:12px; padding-bottom:10px; border-bottom:1px solid #f0b8d4;">
-          <strong>${date}</strong> — Total : ${(order.total || 0).toFixed(2).replace('.', ',')} €
-          ${itemsHtml}
-        </div>`;
-      }).join('');
-    }
     container.style.display = 'block';
+    container.innerHTML = '<p>Chargement…</p>';
+
+    const orders = await stringzFetchMyOrders();
+    if (!orders.length) {
+      container.innerHTML = "<p>Aucune commande pour l'instant.</p>";
+      return;
+    }
+    const statusLabels = { pending: 'En attente de paiement', paid: 'Payée', failed: 'Échouée', refunded: 'Remboursée' };
+    container.innerHTML = orders.map(order => {
+      const date = new Date(order.date).toLocaleDateString('fr-FR');
+      const itemsHtml = (order.items || []).map(it =>
+        `<div>${stringzEscapeHtml(it.name)}${it.qty > 1 ? ' × ' + it.qty : ''} — ${(it.unitPrice * it.qty).toFixed(2).replace('.', ',')} €</div>`
+      ).join('');
+      return `<div style="margin-bottom:12px; padding-bottom:10px; border-bottom:1px solid #f0b8d4;">
+        <strong>${date}</strong> — ${stringzEscapeHtml(statusLabels[order.status] || order.status)} — Total : ${(order.total || 0).toFixed(2).replace('.', ',')} €
+        ${itemsHtml}
+      </div>`;
+    }).join('');
   }
 
-  // ---- RGPD : suppression du compte et des données mémorisées localement ----
-  function handleDeleteAccount() {
-    let email = '';
-    try {
-      const userJson = localStorage.getItem('stringzUser');
-      if (userJson) email = JSON.parse(userJson).email || '';
-    } catch (e) { /* ignore */ }
-
+  // ---- RGPD : suppression/anonymisation du compte côté serveur ----
+  // Voir api/account/delete.js : le compte est anonymisé en base, les
+  // commandes non payées sont supprimées, les commandes payées sont
+  // détachées du compte et anonymisées (mais conservées pour la durée légale
+  // de conservation des documents comptables — voir confidentialite.html).
+  async function handleDeleteAccount() {
     const confirmed = window.confirm(
-      "Supprimer ton compte et toutes les données mémorisées sur cet appareil (identité, historique d'achats affiché) ? Cette action est irréversible."
+      "Supprimer ton compte ? Cette action est irréversible. Les commandes déjà payées seront conservées de façon anonyme pour la durée légale de conservation comptable, mais ne seront plus liées à ton compte."
     );
     if (!confirmed) return;
 
-    // Supprime les données mémorisées localement sur cet appareil.
-    if (email) {
-      try { localStorage.removeItem('stringzPurchases:' + email.toLowerCase()); } catch (e) { /* ignore */ }
+    const result = await stringzDeleteAccount();
+    if (!result.ok) {
+      showToast(result.error || 'Erreur lors de la suppression.', true);
+      return;
     }
-    clearUserSession();
 
-    // ⚠️ Ce site n'ayant pas de base de données de comptes côté serveur
-    // (voir shared-data.js), il n'existe rien d'autre à supprimer côté
-    // serveur pour un compte "utilisateur" classique. Si des données te
-    // concernant existent ailleurs (ex. commandes réellement passées et
-    // confirmées par Stripe), la marche à suivre reste de nous écrire.
-    showToast('Compte et données locales supprimés. Pour toute autre donnée (ex. commandes passées), écris-nous à contact@laryne.exe.');
-
+    showToast(result.message || 'Compte supprimé.');
     document.getElementById('login-form').reset();
     document.getElementById('signup-form').reset();
     switchTab('login');
@@ -479,7 +413,6 @@
   // Initialize on page load
   document.addEventListener('DOMContentLoaded', () => {
     checkAndShowUserSession();
-    // Attach listeners to buttons in user panel (if they exist)
     const logoutBtn = document.getElementById('logout-btn');
     if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
     const viewPurchasesBtn = document.getElementById('view-purchases-btn');

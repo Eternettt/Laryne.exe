@@ -1,104 +1,147 @@
-# Laryne.exe — Mise en place du vrai paiement (Stripe + Vercel)
+# Laryne.exe — Mise en place (base de données + Stripe + Vercel)
 
-Ce dossier contient tout ton site **plus** ce qu'il faut pour que le bouton
-"Passer commande" déclenche un vrai paiement par carte bancaire via Stripe.
+Ce dossier contient tout ton site, **plus** une vraie architecture serveur :
+base de données Postgres (comptes, produits, stock, commandes), paiement
+Stripe réel, sessions sécurisées par cookie. Il n'y a plus de mot de passe
+ni de données produits/commandes stockées uniquement dans le navigateur.
 
-## Comment ça marche
+## Comment ça marche maintenant
 
-- `boutique.html` etc. → tes pages telles qu'elles étaient, avec juste la
-  fonction `checkout()` modifiée.
-- `api/create-checkout-session.js` → une petite fonction serveur qui parle à
-  Stripe avec ta clé secrète (jamais visible dans le navigateur).
-- `success.html` → page affichée après un paiement réussi.
+- **Base de données (Vercel Postgres / Neon)** : stocke les comptes, les
+  produits/stock, et les commandes. C'est la seule source de vérité — voir
+  `db/schema.sql`.
+- **`api/*.js`** : fonctions serverless Vercel. Toutes les actions sensibles
+  (prix, stock, statut de paiement, droits admin) sont calculées/vérifiées
+  ici, jamais dans le navigateur.
+- **Sessions** : cookie `httpOnly` posé par le serveur (`lib/session.js`) —
+  ni `localStorage` ni `sessionStorage` ne contiennent d'information de
+  connexion.
+- **`success.html`** : affiche le statut réel de la commande (interrogé côté
+  serveur), pas un statut que la page elle-même déclarerait.
 
 ## Étapes de mise en place
 
 ### 1. Crée un compte Stripe
-Va sur https://dashboard.stripe.com/register (gratuit, pas de frais fixes,
-juste une commission par transaction réussie).
+https://dashboard.stripe.com/register (gratuit, commission par transaction).
 
 ### 2. Récupère ta clé secrète de TEST
-Dans le tableau de bord Stripe → **Développeurs → Clés API** → copie la
-"Clé secrète" qui commence par `sk_test_...` (reste en mode Test pour
-l'instant, ça ne débite pas de vraies cartes).
+Stripe → **Développeurs → Clés API** → copie la clé qui commence par
+`sk_test_...` (reste en mode Test pour l'instant).
 
-### 3. Crée un compte Vercel
-Va sur https://vercel.com/signup (gratuit). Connecte-toi avec GitHub de
-préférence (le plus simple pour déployer).
+### 3. Crée un compte Vercel et mets le projet sur GitHub
+- https://vercel.com/signup (connecte-toi avec GitHub, le plus simple).
+- Crée un dépôt GitHub (ex. `stringz-exe`), mets-y tous les fichiers de ce
+  dossier (`git init`, `git add .`, `git commit`, `git push`).
 
-### 4. Mets ce dossier sur GitHub
-- Crée un nouveau dépôt GitHub (ex: `stringz-exe`).
-- Mets tous les fichiers de ce dossier dedans (`git init`, `git add .`,
-  `git commit`, `git push` — ou directement en glissant les fichiers sur
-  github.com si tu ne connais pas encore Git).
+### 4. Crée la base de données Postgres
+- Dans ton projet Vercel → onglet **Storage** → "Create Database" →
+  **Postgres** (propulsé par Neon). Suis l'assistant.
+- Une fois créée, Vercel connecte automatiquement la base à ton projet et
+  injecte les variables d'environnement nécessaires (`POSTGRES_URL`, etc.)
+  — tu n'as rien à copier-coller toi-même.
 
-### 5. Importe le projet dans Vercel
-- Sur vercel.com → "Add New Project" → choisis ton dépôt GitHub.
-- Avant de cliquer "Deploy", va dans **Environment Variables** et ajoute
-  TOUTES les variables suivantes (sinon la connexion admin et le paiement
-  ne fonctionneront pas) :
+### 5. Exécute le schéma SQL (une seule fois)
+Dans Vercel → **Storage** → ta base → onglet **Query** (ou "Data"), colle le
+contenu de `db/schema.sql` et exécute-le. Ça crée les tables et insère les 8
+produits de départ.
 
-  | Nom | Valeur |
-  |---|---|
-  | `STRIPE_SECRET_KEY` | ta clé `sk_test_...` récupérée à l'étape 2 |
-  | `STRIPE_WEBHOOK_SECRET` | voir étape 6 bis ci-dessous |
-  | `ADMIN_EMAIL` | l'e-mail avec lequel tu te connectes en admin |
-  | `ADMIN_PASSWORD_HASH` | généré avec `node scripts/hash-password.js "TonMotDePasse"` (voir ci-dessous) — **remplace l'ancien mot de passe `123456`** |
-  | `SESSION_SECRET` | une longue chaîne aléatoire secrète (ex. 64 caractères, générée avec `openssl rand -hex 32`) |
-  | `ADMIN_NAME` | (optionnel) le pseudo affiché, ex. `eternett` |
-
-- Clique "Deploy". Après ~1 minute, ton site est en ligne avec une URL du
-  type `stringz-exe.vercel.app`.
-
-### 5 bis. Génère ton mot de passe admin (en local, sur ton ordinateur)
+Alternative en ligne de commande, si tu préfères :
 ```
-node scripts/hash-password.js "TonNouveauMotDePasse"
+psql "$POSTGRES_URL" -f db/schema.sql
 ```
-Copie la valeur affichée dans la variable Vercel `ADMIN_PASSWORD_HASH`. Le
-mot de passe en clair n'a besoin d'être tapé nulle part d'autre : ni dans le
-code, ni dans un fichier du dépôt.
+(la valeur de `$POSTGRES_URL` se trouve dans Vercel → Storage → ta base →
+onglet ".env.local" / "Quickstart")
 
-### 6. Teste un paiement
-Stripe fournit des numéros de carte de test, par exemple :
-`4242 4242 4242 4242`, n'importe quelle date future, n'importe quel CVC.
-Passe une commande sur ton site déployé et vérifie que ça fonctionne.
+### 6. Récupère les variables d'environnement en local (pour créer ton compte admin)
+```
+npm install -g vercel      # si pas déjà fait
+vercel link                # relie ce dossier à ton projet Vercel
+vercel env pull .env.local # télécharge les variables (dont POSTGRES_URL)
+```
 
-### 6 bis. Configure le webhook Stripe (vérifie vraiment qu'un paiement a réussi)
-- Dans Stripe → **Développeurs → Webhooks** → "Add endpoint".
+### 7. Crée ton compte admin
+```
+npm install
+node -r dotenv/config scripts/create-admin.js "toi@exemple.com" "TonMotDePasse" "TonPseudo"
+```
+(si `dotenv` n'est pas installé : `npm install dotenv --save-dev`, ou exporte
+manuellement les variables de `.env.local` dans ton terminal avant de lancer
+la commande).
+
+Ce mot de passe n'est stocké NULLE PART en clair — ni dans le code, ni dans
+un fichier du dépôt : uniquement son hash, en base de données.
+
+### 8. Configure les variables d'environnement sur Vercel
+Vercel → ton projet → **Settings → Environment Variables** — les variables
+`POSTGRES_*` sont déjà là (étape 4). Ajoute en plus :
+
+| Nom | Valeur |
+|---|---|
+| `STRIPE_SECRET_KEY` | ta clé `sk_test_...` de l'étape 2 |
+| `STRIPE_WEBHOOK_SECRET` | voir étape 10 ci-dessous |
+| `SESSION_SECRET` | une longue chaîne aléatoire secrète (ex. `openssl rand -hex 32`) |
+
+Puis **redéploie** (Vercel → Deployments → "Redeploy") pour que les nouvelles
+variables soient prises en compte.
+
+### 9. Teste un paiement
+Numéro de carte de test Stripe : `4242 4242 4242 4242`, date future, CVC
+quelconque. Passe une commande sur ton site déployé.
+
+### 10. Configure le webhook Stripe (obligatoire pour que les commandes passent "payées")
+- Stripe → **Développeurs → Webhooks** → "Add endpoint".
 - URL : `https://ton-site.vercel.app/api/webhook`
-- Événement à écouter : `checkout.session.completed`
-- Stripe te donne alors un "Signing secret" (`whsec_...`) : mets-le dans la
-  variable d'environnement Vercel `STRIPE_WEBHOOK_SECRET`, puis redéploie.
+- Événements à écouter : `checkout.session.completed`,
+  `checkout.session.async_payment_succeeded`, `checkout.session.expired`,
+  `checkout.session.async_payment_failed`.
+- Stripe te donne un "Signing secret" (`whsec_...`) → mets-le dans
+  `STRIPE_WEBHOOK_SECRET` (étape 8), puis redéploie.
+- **Sans cette étape**, les commandes restent bloquées au statut "pending"
+  pour toujours, même après un paiement réussi.
 
-### 7. Passe en mode réel (quand tu es prêt à vendre pour de vrai)
-- Dans Stripe, active ton compte (infos bancaires, société/auto-entreprise,
-  etc. — Stripe te guide).
-- Récupère ta clé secrète de **production** (`sk_live_...`) et ton
-  "Signing secret" de webhook en mode production.
-- Remplace les variables d'environnement `STRIPE_SECRET_KEY` et
-  `STRIPE_WEBHOOK_SECRET` dans Vercel par ces valeurs live, puis redéploie.
-- Choisis un mot de passe admin robuste et différent de tout ce que tu as
-  utilisé ailleurs, et régénère `ADMIN_PASSWORD_HASH` avec.
+### 11. Passe en mode réel
+- Active ton compte Stripe (infos bancaires, etc.).
+- Récupère tes clés/secrets de **production** (`sk_live_...`, webhook en
+  mode live) et remplace les variables Vercel correspondantes.
+- Redéploie.
+
+## Tables créées (voir db/schema.sql)
+
+| Table | Contenu |
+|---|---|
+| `users` | comptes, mot de passe hashé (scrypt), rôle (`user`/`admin`) |
+| `products` | catalogue, prix en centimes, stock |
+| `orders` | une commande (panier ou création perso), statut, montant total |
+| `order_items` | le détail (produits + quantités + prix figé) d'une commande |
+| `processed_webhook_events` | anti-doublon des événements Stripe déjà traités |
 
 ## ⚠️ Points importants
 
-- **Ne mets jamais** de clé secrète, mot de passe ou "SESSION_SECRET"
+- **Ne mets jamais** de clé secrète, mot de passe ou `SESSION_SECRET`
   directement dans le code HTML/JS — uniquement dans les variables
-  d'environnement Vercel. Ce n'est déjà plus le cas dans ce dossier (voir le
-  rapport d'audit), mais reste vigilant·e si tu modifies le code toi-même.
-- La liste `PRODUCTS` dans `api/create-checkout-session.js`, ainsi que les
-  tables de prix `CUSTOM_*` (pour le configurateur "Commande perso"),
-  doivent être tenues à jour manuellement pour l'instant (elles servent de
-  "source de vérité" des prix côté serveur, pour que personne ne puisse
-  trafiquer les prix depuis le navigateur). Si tu ajoutes/modifies un
-  article dans le panneau Gestion, pense à répercuter le changement ici
-  aussi.
-- **Limite importante à connaître :** ce site n'a pas de vraie base de
-  données partagée. Les produits, l'historique d'achats et les comptes
-  utilisateur·rices classiques ne sont mémorisés que dans le navigateur de
-  chaque personne (localStorage), pas sur un serveur central. Concrètement :
-  un changement fait dans le panneau Gestion ne sera visible **que sur
-  l'appareil qui l'a fait**, pas pour tes client·es, et un compte créé via
-  "Inscription" est perdu au rechargement de la page. Voir le rapport
-  d'audit pour le détail et les pistes pour une vraie base de données.
-
+  d'environnement Vercel.
+- Les tables de prix `CUSTOM_*` du configurateur "Commande perso" (dans
+  `api/create-checkout-session.js`) doivent être tenues à jour manuellement
+  si tu changes les tarifs affichés sur `commande_perso.html`.
+- Un produit désactivé depuis le panneau Gestion (bouton "Supprimer")
+  n'est pas effacé de la base — il passe juste `active = false`, pour ne
+  jamais casser l'historique des commandes qui le référencent. Tu peux le
+  réactiver en base si besoin.
+- **Anti-survente :** le stock est réservé (décrémenté) dès la création de
+  la session de paiement — pas au webhook — via une requête SQL atomique
+  (`UPDATE ... WHERE stock >= quantité`). Sous PostgreSQL, deux achats
+  simultanés sur le même dernier exemplaire se sérialisent automatiquement :
+  il est structurellement impossible d'en vendre plus que le stock
+  disponible, même en cas de forte concurrence (testé avec jusqu'à 30
+  acheteur·ses simultané·es sur un stock de 5 — voir `test/stress-concurrency.js`).
+  Si le paiement n'aboutit pas (session expirée après 30 minutes, ou paiement
+  échoué), le stock réservé est automatiquement relâché par le webhook. Dans
+  le cas exceptionnel où un paiement se confirme en retard alors que le
+  stock libéré a déjà été repris par quelqu'un d'autre, la commande est
+  **remboursée automatiquement** via l'API Stripe (aucune intervention
+  manuelle nécessaire).
+- Voir le rapport d'audit pour le détail des tests effectués et les points
+  encore à vérifier après déploiement réel (le code a été testé contre une
+  vraie base SQLite locale, faute d'accès réseau à Postgres/Stripe pendant
+  son développement — une vérification en conditions réelles après mise en
+  ligne reste recommandée).

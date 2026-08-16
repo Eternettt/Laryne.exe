@@ -73,8 +73,8 @@
 </head>
 <body>
   <div class="card">
-    <h1>✅ Paiement confirmé</h1>
-    <p>Merci pour ta commande sur Laryne.exe ! Un e-mail de confirmation t'a été envoyé par Stripe.</p>
+    <h1 id="result-title">✅ Paiement confirmé</h1>
+    <p id="result-text">Merci pour ta commande sur Laryne.exe ! Un e-mail de confirmation t'a été envoyé par Stripe.</p>
 
     <div class="order-summary" id="order-summary" style="display:none;"></div>
     <p class="no-account-note" id="no-account-note" style="display:none;">
@@ -87,42 +87,73 @@
 
   <script src="shared-data.js"></script>
   <script>
-    // Affiche l'identifiant de session Stripe si présent dans l'URL (utile pour le support client)
+    // Le statut affiché vient TOUJOURS du serveur (voir
+    // /api/orders/by-session.js, lui-même alimenté uniquement par le webhook
+    // Stripe vérifié par signature — voir api/webhook.js). Cette page
+    // n'affirme jamais elle-même qu'un paiement a réussi : elle affiche ce
+    // que la base de données sait vraiment.
     const params = new URLSearchParams(window.location.search);
     const sessionId = params.get('session_id');
     if (sessionId) {
       document.getElementById('order-id').textContent = 'Référence : ' + sessionId;
     }
 
-    // On ne considère la commande comme réelle QUE parce qu'on vient d'arriver
-    // sur cette page : elle n'est atteinte qu'après une confirmation de
-    // paiement par Stripe (redirection retour). On enregistre alors cette
-    // commande, avec sa date, dans l'historique "Mes achats" de l'utilisateur.
-    const pending = stringzTakePendingOrder();
-
-    if (pending && Array.isArray(pending.items) && pending.items.length) {
+    function renderOrder(order) {
       const summaryEl = document.getElementById('order-summary');
-      summaryEl.style.display = 'block';
-      summaryEl.innerHTML = pending.items.map(it => `
-        <div class="line">
-          <span>${stringzEscapeHtml(it.name)}${it.qty > 1 ? ' × ' + it.qty : ''}</span>
-          <span>${(it.unitPrice * it.qty).toFixed(2).replace('.', ',')} €</span>
-        </div>
-      `).join('') + `
-        <div class="total"><span>Total</span><span>${(pending.total || 0).toFixed(2).replace('.', ',')} €</span></div>
-      `;
-
-      if (pending.email) {
-        stringzAddPurchase(pending.email, {
-          id: sessionId || ('local-' + Date.now()),
-          date: new Date().toISOString(),
-          source: pending.source || 'boutique',
-          items: pending.items,
-          total: pending.total || 0
-        });
-      } else {
+      if (order.items && order.items.length) {
+        summaryEl.style.display = 'block';
+        summaryEl.innerHTML = order.items.map(it => `
+          <div class="line">
+            <span>${stringzEscapeHtml(it.name)}${it.qty > 1 ? ' × ' + it.qty : ''}</span>
+            <span>${(it.unitPrice * it.qty).toFixed(2).replace('.', ',')} €</span>
+          </div>
+        `).join('') + `
+          <div class="total"><span>Total</span><span>${(order.total || 0).toFixed(2).replace('.', ',')} €</span></div>
+        `;
+      }
+      if (!order.linkedToAccount) {
         document.getElementById('no-account-note').style.display = 'block';
       }
+    }
+
+    function showState(title, text) {
+      document.getElementById('result-title').textContent = title;
+      document.getElementById('result-text').textContent = text;
+    }
+
+    async function pollOrder(sessionId, attemptsLeft) {
+      const order = await stringzFetchOrderBySession(sessionId);
+
+      if (!order) {
+        showState('Commande introuvable', "On ne retrouve pas cette commande. Si le paiement a bien été débité, écris-nous à contact@laryne.exe avec la référence ci-dessous.");
+        return;
+      }
+
+      if (order.status === 'paid') {
+        showState('✅ Paiement confirmé', "Merci pour ta commande sur Laryne.exe ! Un e-mail de confirmation t'a été envoyé par Stripe.");
+        renderOrder(order);
+        return;
+      }
+
+      if (order.status === 'failed') {
+        showState('❌ Paiement non abouti', "Le paiement n'a pas pu être confirmé (échec ou session expirée). Aucune somme ne devrait avoir été débitée ; tu peux retenter ta commande.");
+        return;
+      }
+
+      // status === 'pending' : le webhook Stripe peut mettre quelques
+      // secondes à arriver après la redirection. On réessaie un peu avant
+      // d'afficher un message d'attente définitif.
+      if (attemptsLeft > 0) {
+        setTimeout(() => pollOrder(sessionId, attemptsLeft - 1), 1500);
+      } else {
+        showState('⏳ Confirmation en cours', "Ton paiement est en cours de confirmation. Ça peut prendre quelques instants — actualise cette page dans une minute, ou consulte « Mes achats » depuis ton compte.");
+      }
+    }
+
+    if (sessionId) {
+      pollOrder(sessionId, 4);
+    } else {
+      showState('Retour à la boutique', "Aucune commande à afficher ici. Si tu penses avoir payé, vérifie « Mes achats » depuis ton compte ou écris-nous.");
     }
   </script>
 <footer id="stringz-legal-footer">

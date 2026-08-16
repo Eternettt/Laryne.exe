@@ -122,7 +122,7 @@
     <p>Les données sont accessibles par <span class="placeholder">[À REMPLACER : ex. vous-même en tant que responsable du site]</span> et, pour les besoins strictement nécessaires au fonctionnement du site, par les sous-traitants suivants :</p>
     <ul>
       <li><strong>Stripe</strong> (traitement des paiements) — <a href="https://stripe.com/fr/privacy" target="_blank" rel="noopener">politique de confidentialité de Stripe</a>.</li>
-      <li><strong>Vercel</strong> (hébergement du site) — <a href="https://vercel.com/legal/privacy-policy" target="_blank" rel="noopener">politique de confidentialité de Vercel</a>.</li>
+      <li><strong>Vercel</strong> (hébergement du site et de la base de données Postgres) — <a href="https://vercel.com/legal/privacy-policy" target="_blank" rel="noopener">politique de confidentialité de Vercel</a>.</li>
       <li>Votre messagerie e-mail personnelle, lorsque vous utilisez un formulaire qui ouvre un e-mail pré-rempli (contact, lettre de la culotte légère, atelier) : le message transite alors par votre propre client mail, pas par un serveur du site.</li>
     </ul>
     <p>Aucune donnée n'est vendue à des tiers. Aucune donnée n'est utilisée à des fins publicitaires.</p>
@@ -142,16 +142,15 @@
     <p>Pour exercer l'un de ces droits, y compris la suppression de votre compte, écrivez-nous à <a href="mailto:contact@laryne.exe">contact@laryne.exe</a> en précisant votre demande. Nous nous engageons à répondre dans un délai maximum d'un mois. Vous pouvez aussi introduire une réclamation auprès de la CNIL (<a href="https://www.cnil.fr" target="_blank" rel="noopener">www.cnil.fr</a>).</p>
 
     <h2>7. Cookies et traceurs</h2>
-    <p>Ce site n'utilise <strong>aucun cookie publicitaire ni outil d'analyse d'audience (analytics)</strong> à ce jour. Il utilise uniquement le stockage local de votre navigateur (localStorage / sessionStorage), strictement nécessaire au fonctionnement du site :</p>
+    <p>Ce site n'utilise <strong>aucun cookie publicitaire ni outil d'analyse d'audience (analytics)</strong> à ce jour. Il utilise uniquement :</p>
     <ul>
-      <li>mémoriser le contenu de votre panier ;</li>
-      <li>vous garder connecté·e sur cet appareil ;</li>
-      <li>afficher les mêmes produits/ateliers d'une page à l'autre.</li>
+      <li>un cookie de connexion (<code>stringz_session</code>), déposé uniquement lorsque vous vous connectez à votre compte, pour vous garder connecté·e en toute sécurité (ce cookie est technique — <code>httpOnly</code>, illisible par du code JavaScript — et ne sert à aucun suivi publicitaire) ;</li>
+      <li>le stockage local de votre navigateur (localStorage/sessionStorage) pour le contenu de votre panier avant paiement, et pour l'affichage du diaporama/des ateliers.</li>
     </ul>
-    <p>Ce type de stockage, strictement nécessaire au fonctionnement du site, ne nécessite pas de consentement préalable au sens des recommandations de la CNIL. Si des outils d'analyse ou de publicité venaient à être ajoutés à l'avenir, un bandeau de consentement (accepter / refuser / personnaliser) serait mis en place avant leur activation.</p>
+    <p>Ces éléments, strictement nécessaires au fonctionnement du site (authentification, panier), ne nécessitent pas de consentement préalable au sens des recommandations de la CNIL. Si des outils d'analyse ou de publicité venaient à être ajoutés à l'avenir, un bandeau de consentement (accepter / refuser / personnaliser) serait mis en place avant leur activation.</p>
 
     <h2>8. Sécurité</h2>
-    <p>Des mesures techniques sont mises en œuvre pour protéger vos données (connexion chiffrée HTTPS, mots de passe jamais stockés en clair, accès administrateur vérifié côté serveur). Aucun système n'étant infaillible à 100 %, en cas de doute sur la sécurité de vos informations, contactez-nous.</p>
+    <p>Des mesures techniques sont mises en œuvre pour protéger vos données : connexion chiffrée HTTPS, mots de passe jamais stockés en clair (hashés), accès administrateur vérifié côté serveur à chaque requête, base de données hébergée chez un prestataire européen/américain sous garanties contractuelles (voir section 5), commandes et permissions systématiquement revérifiées côté serveur. Aucun système n'étant infaillible à 100 %, en cas de doute sur la sécurité de vos informations, contactez-nous.</p>
   </div>
 </main>
 

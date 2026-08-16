@@ -622,11 +622,12 @@
     document.getElementById('section-workshop').classList.toggle('show', name === 'workshop');
   }
 
-  // Revérifie auprès du serveur (voir /api/verify-session.js) que le jeton
-  // admin est réellement valide, plutôt que de faire confiance à
-  // sessionStorage seul (qui pourrait être bricolé depuis les DevTools).
+  // Revérifie auprès du serveur (voir /api/auth/me) que la session admin est
+  // réellement valide (cookie httpOnly, rôle revérifié en base), plutôt que
+  // de faire confiance à sessionStorage seul (bricolable depuis les DevTools).
   async function checkAccess() {
-    const admin = await stringzVerifyAdminSession();
+    const user = await stringzMe();
+    const admin = !!(user && user.role === 'admin');
     document.getElementById('denied').classList.toggle('show', !admin);
     document.getElementById('admin-content').classList.toggle('show', admin);
     return admin;
@@ -641,9 +642,12 @@
     toastTimeout = setTimeout(() => toast.classList.remove('show'), 2000);
   }
 
-  function persist() {
-    stringzSaveProducts(products);
-    showToast('Enregistré ✓');
+  async function reloadProductsFromServer() {
+    const list = await stringzAdminListProducts();
+    if (list) {
+      products = list.map(p => ({ ...p, price: p.price ?? p.price_cents / 100 }));
+    }
+    return list;
   }
 
   function renderModels() {
@@ -660,7 +664,7 @@
       card.dataset.id = p.id;
       card.innerHTML = `
         <div class="model-icon-col">
-          <div class="model-icon-btn" onclick="openIconModal(${p.id})">${p.iconImage ? `<img src="${stringzEscapeHtml(p.iconImage)}" alt="">` : (stringzEscapeHtml(p.icon) || '❔')}</div>
+          <div class="model-icon-btn" onclick="openIconModal(${p.id})">${isIconImage(p.icon) ? `<img src="${stringzEscapeHtml(p.icon)}" alt="">` : (stringzEscapeHtml(p.icon) || '❔')}</div>
           <small>Icône</small>
         </div>
 
@@ -708,15 +712,27 @@
     });
   }
 
-  function updateField(id, field, rawValue) {
+  async function updateField(id, field, rawValue) {
     const p = products.find(x => x.id === id);
     if (!p) return;
-    if (field === 'price') p.price = Math.max(0, parseFloat(rawValue)) || 0;
-    else if (field === 'stock') p.stock = Math.max(0, parseInt(rawValue, 10)) || 0;
-    else if (field === 'name') p.name = rawValue.trim() || p.name;
-    else if (field === 'category') p.category = rawValue.trim() || p.category;
-    persist();
+    const patch = {};
+    if (field === 'price') patch.price = Math.max(0, parseFloat(rawValue)) || 0;
+    else if (field === 'stock') patch.stock = Math.max(0, parseInt(rawValue, 10)) || 0;
+    else if (field === 'name') patch.name = rawValue.trim() || p.name;
+    else if (field === 'category') patch.category = rawValue.trim() || p.category;
+
+    const result = await stringzAdminUpdateProduct(id, patch);
+    if (!result.ok) { showToast(result.data.error || 'Erreur lors de la mise à jour.'); await reloadProductsFromServer(); renderModels(); return; }
+    Object.assign(p, patch);
+    showToast('Enregistré ✓');
     renderModels();
+  }
+
+  // Icône produit : soit un emoji (texte court), soit une image uploadée
+  // (stockée comme data-uri directement dans la colonne `icon` — pas de
+  // colonne séparée côté serveur, pour rester sur un schéma simple).
+  function isIconImage(icon) {
+    return typeof icon === 'string' && icon.startsWith('data:image');
   }
 
   function openIconModal(id) {
@@ -731,12 +747,12 @@
       const el = document.createElement('div');
       el.className = 'icon-choice';
       el.textContent = icon;
-      el.onclick = () => {
+      el.onclick = async () => {
         const prod = products.find(x => x.id === iconTargetId);
         if (prod) {
+          const result = await stringzAdminUpdateProduct(prod.id, { icon });
+          if (!result.ok) { showToast(result.data.error || 'Erreur.'); return; }
           prod.icon = icon;
-          delete prod.iconImage;
-          persist();
           renderModels();
           updateProductIconPreview(prod);
         }
@@ -752,8 +768,8 @@
   function updateProductIconPreview(p) {
     const circle = document.getElementById('product-icon-preview');
     const removeBtn = document.getElementById('product-icon-remove-btn');
-    if (p && p.iconImage) {
-      circle.innerHTML = `<img src="${p.iconImage}" alt="">`;
+    if (p && isIconImage(p.icon)) {
+      circle.innerHTML = `<img src="${stringzEscapeHtml(p.icon)}" alt="">`;
       removeBtn.style.display = 'block';
     } else {
       circle.textContent = (p && p.icon) || '❔';
@@ -761,15 +777,16 @@
     }
   }
 
-  function uploadProductIconImage(event) {
+  async function uploadProductIconImage(event) {
     const file = event.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       const p = products.find(x => x.id === iconTargetId);
       if (!p) return;
-      p.iconImage = e.target.result;
-      persist();
+      const result = await stringzAdminUpdateProduct(p.id, { icon: e.target.result });
+      if (!result.ok) { showToast(result.data.error || 'Erreur.'); return; }
+      p.icon = e.target.result;
       renderModels();
       updateProductIconPreview(p);
     };
@@ -777,11 +794,12 @@
     event.target.value = '';
   }
 
-  function removeProductIconImage() {
+  async function removeProductIconImage() {
     const p = products.find(x => x.id === iconTargetId);
     if (!p) return;
-    delete p.iconImage;
-    persist();
+    const result = await stringzAdminUpdateProduct(p.id, { icon: '' });
+    if (!result.ok) { showToast(result.data.error || 'Erreur.'); return; }
+    p.icon = '';
     renderModels();
     updateProductIconPreview(p);
   }
@@ -792,41 +810,45 @@
     document.getElementById('icon-modal').classList.remove('open');
   }
 
-  function addImage(id, event) {
+  async function addImage(id, event) {
     const file = event.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       const p = products.find(x => x.id === id);
       if (!p) return;
-      if (!p.images) p.images = p.img ? [p.img] : [];
-      p.images.push(e.target.result);
-      persist();
+      const images = (p.images || (p.img ? [p.img] : [])).concat([e.target.result]);
+      const result = await stringzAdminUpdateProduct(id, { images });
+      if (!result.ok) { showToast(result.data.error || 'Erreur.'); return; }
+      p.images = images;
       renderModels();
     };
     reader.readAsDataURL(file);
     event.target.value = '';
   }
 
-  function deleteImage(id, index) {
+  async function deleteImage(id, index) {
     const p = products.find(x => x.id === id);
     if (!p || !p.images) return;
-    p.images.splice(index, 1);
-    persist();
+    const images = p.images.slice();
+    images.splice(index, 1);
+    const result = await stringzAdminUpdateProduct(id, { images });
+    if (!result.ok) { showToast(result.data.error || 'Erreur.'); return; }
+    p.images = images;
     renderModels();
   }
 
-  function deleteModel(id) {
-    if (!confirm('Supprimer définitivement ce modèle ?')) return;
+  async function deleteModel(id) {
+    if (!confirm('Retirer définitivement ce modèle de la boutique ?')) return;
+    const result = await stringzAdminDeleteProduct(id);
+    if (!result.ok) { showToast(result.data.error || 'Erreur lors de la suppression.'); return; }
     products = products.filter(p => p.id !== id);
-    persist();
+    showToast('Modèle retiré de la boutique ✓');
     renderModels();
   }
 
-  function createNewModel() {
-    const nextId = products.length ? Math.max(...products.map(p => p.id)) + 1 : 1;
-    products.push({
-      id: nextId,
+  async function createNewModel() {
+    const result = await stringzAdminCreateProduct({
       name: 'Nouveau modèle',
       category: 'String',
       price: 29.9,
@@ -834,7 +856,8 @@
       icon: '🩲',
       images: [`https://placehold.co/300x200?text=Nouveau+modele`],
     });
-    persist();
+    if (!result.ok) { showToast(result.data.error || 'Erreur lors de la création.'); return; }
+    products.push(result.data.product);
     renderModels();
     showToast('Nouveau modèle ajouté ✓');
   }
@@ -1095,18 +1118,12 @@
   // ---- Démarrage ----
   (async function initAdminPage() {
     if (await checkAccess()) {
-      products = stringzLoadProducts();
+      await reloadProductsFromServer();
       renderModels();
       workshops = stringzLoadWorkshops();
       renderWorkshops();
     }
   })();
-
-  // Se met à jour si modifié depuis un autre onglet (ex: boutique.html)
-  stringzOnProductsChanged(() => {
-    products = stringzLoadProducts();
-    renderModels();
-  });
 </script>
 
 </body>
