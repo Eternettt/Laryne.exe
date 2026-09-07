@@ -1,0 +1,25 @@
+# Copie ce fichier en ".env.local" en local pour les tests, et configure les
+# vraies valeurs directement dans Vercel → Project Settings → Environment
+# Variables (jamais commitées dans le code).
+
+# ---- Stripe ----
+STRIPE_SECRET_KEY=sk_test_remplace_moi
+STRIPE_WEBHOOK_SECRET=whsec_remplace_moi
+
+# ---- Base de données Postgres ----
+# Ajoutées AUTOMATIQUEMENT par Vercel quand tu connectes une base "Storage →
+# Postgres" au projet (Neon). Ne pas les remplir à la main sur Vercel — elles
+# apparaissent seules. Utile seulement pour tester en local après un
+# `vercel env pull .env.local`.
+POSTGRES_URL=
+POSTGRES_URL_NON_POOLING=
+POSTGRES_PRISMA_URL=
+POSTGRES_USER=
+POSTGRES_HOST=
+POSTGRES_PASSWORD=
+POSTGRES_DATABASE=
+
+# ---- Sessions ----
+# Chaîne aléatoire longue, générée une fois (voir LISEZ-MOI.md) puis figée.
+# La changer déconnecte tout le monde.
+SESSION_SECRET=remplace_moi_par_une_longue_chaine_aleatoire
