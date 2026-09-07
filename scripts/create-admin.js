@@ -1,54 +1,70 @@
-// scripts/create-admin.js
-// Crée (ou promeut) un compte admin directement en base — à lancer en local
-// sur ton ordinateur, jamais depuis une route du site.
-//
-// Utilisation (après avoir configuré la variable d'environnement
-// POSTGRES_URL en local, ex. via `vercel env pull .env.local` puis
-// `node -r dotenv/config scripts/create-admin.js ...` ou en export-ant la
-// variable manuellement) :
-//
-//   node scripts/create-admin.js "toi@exemple.com" "TonMotDePasse" "TonPseudo"
-//
-// Si le compte existe déjà (même email), il est simplement promu admin et
-// son mot de passe mis à jour. Sinon un nouveau compte admin est créé.
+#!/usr/bin/env node
+/* ==========================================================================
+   scripts/create-admin.js — Crée (ou promeut) un compte administrateur.
+   ==========================================================================
+   Utilisation, depuis la racine du projet :
 
-const { sql } = require('../lib/db');
-const { hashPassword } = require('../lib/crypto');
+     vercel env pull .env.local          # une seule fois, récupère POSTGRES_URL etc.
+     node scripts/create-admin.js toi@exemple.com "mot-de-passe-solide" "Ton nom"
+
+   Si tu as installé "dotenv" (npm i -D dotenv), .env.local sera chargé
+   automatiquement. Sinon, exporte les variables POSTGRES_* toi-même avant
+   de lancer la commande (ou utilise `npx dotenv-cli -e .env.local -- node
+   scripts/create-admin.js ...`).
+   ========================================================================== */
+
+try {
+  require('dotenv').config({ path: '.env.local' });
+} catch (e) {
+  // dotenv non installé : on suppose que les variables sont déjà exportées
+  // dans l'environnement courant.
+}
+
+const crypto = require('crypto');
+const { sql } = require('@vercel/postgres');
+
+function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.scryptSync(password, salt, 64).toString('hex');
+  return { hash, salt };
+}
 
 async function main() {
-  const [, , email, password, name] = process.argv;
-  if (!email || !password) {
-    console.error('Usage : node scripts/create-admin.js "email@exemple.com" "MotDePasse" "Pseudo (optionnel)"');
+  const [, , emailArg, passwordArg, nameArg] = process.argv;
+
+  if (!emailArg || !passwordArg) {
+    console.error('Usage : node scripts/create-admin.js email@exemple.com motdepasse "Nom affiché"');
     process.exit(1);
   }
-  if (password.length < 8) {
-    console.error('Choisis un mot de passe admin d\'au moins 8 caractères.');
+  if (passwordArg.length < 8) {
+    console.error('Le mot de passe doit faire au moins 8 caractères.');
     process.exit(1);
   }
 
-  const passwordHash = hashPassword(password);
-  const normalizedEmail = email.trim().toLowerCase();
+  const email = emailArg.trim().toLowerCase();
+  const { hash, salt } = hashPassword(passwordArg);
 
-  const existing = await sql`SELECT id FROM users WHERE email = ${normalizedEmail} LIMIT 1`;
+  const { rows: existing } = await sql`select id from users where email = ${email}`;
 
-  if (existing.rows.length) {
+  if (existing.length) {
     await sql`
-      UPDATE users SET password_hash = ${passwordHash}, role = 'admin', deleted_at = NULL,
-             name = COALESCE(NULLIF(${name || ''}, ''), name)
-      WHERE id = ${existing.rows[0].id}
+      update users
+      set role = 'admin', password_hash = ${hash}, password_salt = ${salt}, deleted_at = null
+      where id = ${existing[0].id}
     `;
-    console.log(`Compte existant ${normalizedEmail} promu admin et mot de passe mis à jour.`);
+    console.log(`✔ Compte existant "${email}" promu administrateur et mot de passe mis à jour.`);
   } else {
     await sql`
-      INSERT INTO users (email, password_hash, name, role)
-      VALUES (${normalizedEmail}, ${passwordHash}, ${name || 'Administrateur'}, 'admin')
+      insert into users (email, password_hash, password_salt, name, role)
+      values (${email}, ${hash}, ${salt}, ${nameArg || ''}, 'admin')
     `;
-    console.log(`Compte admin créé : ${normalizedEmail}`);
+    console.log(`✔ Compte administrateur "${email}" créé.`);
   }
+
   process.exit(0);
 }
 
-main().catch(err => {
-  console.error('Erreur:', err.message);
+main().catch((err) => {
+  console.error('Erreur :', err.message);
   process.exit(1);
 });

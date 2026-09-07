@@ -1,9 +1,20 @@
-// api/admin/orders.js
-// Liste toutes les commandes, réservé admin (requireAdmin revérifie le rôle
-// en base à chaque appel).
-
 const { sql } = require('../../lib/db');
-const { requireAdmin } = require('../../lib/session');
+const { getSession } = require('../../lib/session');
+
+async function requireAdmin(req, res) {
+  const session = getSession(req);
+  if (!session) {
+    res.status(401).json({ error: 'Non connecté.' });
+    return null;
+  }
+  const { rows } = await sql`select id, role, deleted_at from users where id = ${session.uid}`;
+  const user = rows[0];
+  if (!user || user.deleted_at || user.role !== 'admin') {
+    res.status(403).json({ error: 'Accès refusé.' });
+    return null;
+  }
+  return user;
+}
 
 module.exports = async (req, res) => {
   if (req.method !== 'GET') {
@@ -15,43 +26,26 @@ module.exports = async (req, res) => {
   if (!admin) return;
 
   try {
-    const { rows: orders } = await sql`
-      SELECT o.id, o.user_id, o.email, o.status, o.kind, o.total_cents, o.created_at,
-             u.email AS account_email, u.name AS account_name
-      FROM orders o
-      LEFT JOIN users u ON u.id = o.user_id
-      ORDER BY o.created_at DESC
-      LIMIT 300
+    const { rows } = await sql`
+      select o.id, o.stripe_session_id, o.status, o.items, o.total_cents, o.customer_email, o.created_at,
+             u.email as account_email
+      from orders o
+      left join users u on u.id = o.user_id
+      order by o.created_at desc
+      limit 500
     `;
-    const orderIds = orders.map(o => o.id);
-    let itemsByOrder = {};
-    if (orderIds.length) {
-      const { rows: items } = await sql`
-        SELECT order_id, name_snapshot, unit_price_cents, quantity
-        FROM order_items WHERE order_id = ANY(${orderIds})
-      `;
-      itemsByOrder = items.reduce((acc, it) => {
-        (acc[it.order_id] = acc[it.order_id] || []).push({
-          name: it.name_snapshot, unitPrice: it.unit_price_cents / 100, qty: it.quantity,
-        });
-        return acc;
-      }, {});
-    }
-
-    res.status(200).json({
-      orders: orders.map(o => ({
-        id: o.id,
-        status: o.status,
-        kind: o.kind,
-        total: o.total_cents / 100,
-        date: o.created_at,
-        email: o.account_email || o.email || '(invité)',
-        accountName: o.account_name || null,
-        items: itemsByOrder[o.id] || [],
-      })),
-    });
+    const orders = rows.map((r) => ({
+      id: r.id,
+      sessionId: r.stripe_session_id,
+      status: r.status,
+      items: r.items,
+      total: r.total_cents / 100,
+      customerEmail: r.customer_email || r.account_email || null,
+      createdAt: r.created_at,
+    }));
+    res.status(200).json({ orders });
   } catch (err) {
-    console.error('Erreur GET /api/admin/orders:', err.message);
+    console.error(err);
     res.status(500).json({ error: 'Erreur serveur.' });
   }
 };
