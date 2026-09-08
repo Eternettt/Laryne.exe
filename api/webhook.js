@@ -1,12 +1,3 @@
-/* ==========================================================================
-   api/webhook.js — Reçoit les événements Stripe (paiement confirmé/échoué).
-   ==========================================================================
-   C'est la SEULE source de vérité sur le statut réel d'un paiement (jamais
-   le navigateur, voir success.html). La signature Stripe est vérifiée à
-   partir du corps BRUT de la requête, d'où la config bodyParser: false
-   ci-dessous.
-   ========================================================================== */
-
 const Stripe = require('stripe');
 const { sql } = require('../lib/db');
 
@@ -55,9 +46,6 @@ async function handler(req, res) {
           where id = ${order.id}
         `;
 
-        // Décrémente le stock uniquement pour les lignes venant de la
-        // boutique (produits en base) — les créations perso / ateliers
-        // n'ont pas de stock à décrémenter.
         const items = order.items || [];
         for (const item of items) {
           if (item.productId) {

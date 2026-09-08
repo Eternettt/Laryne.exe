@@ -3,7 +3,11 @@
     { "source": "/api/auth/signup", "destination": "/api/auth?action=signup" },
     { "source": "/api/auth/login", "destination": "/api/auth?action=login" },
     { "source": "/api/auth/logout", "destination": "/api/auth?action=logout" },
-    { "source": "/api/auth/me", "destination": "/api/auth?action=me" }
+    { "source": "/api/auth/me", "destination": "/api/auth?action=me" },
+    { "source": "/api/account/delete", "destination": "/api/auth?action=delete-account" },
+    { "source": "/api/admin/products", "destination": "/api/products?admin=1" },
+    { "source": "/api/orders/by-session", "destination": "/api/orders?mode=by-session" },
+    { "source": "/api/admin/orders", "destination": "/api/orders?mode=admin" }
   ],
   "headers": [
     {

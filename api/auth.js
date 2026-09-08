@@ -1,16 +1,19 @@
 /* ==========================================================================
-   api/auth/index.js — Regroupe signup / login / logout / me dans UNE seule
-   fonction serverless (le plan Hobby de Vercel limite à 12 fonctions par
-   déploiement, donc on évite d'en consommer une par sous-route).
-   ==========================================================================
-   Appelé via /api/auth?action=signup|login|logout|me
-   shared-data.js doit pointer vers ces URLs (voir plus bas dans ce fichier
-   pour la liste exacte des chemins attendus côté front).
+   api/auth.js — Regroupe TOUT ce qui touche au compte utilisateur dans une
+   seule fonction serverless (signup / login / logout / me / suppression de
+   compte), pour rester très en dessous de la limite de 12 fonctions du plan
+   Hobby de Vercel.
+
+   Appelé via /api/auth?action=signup|login|logout|me|delete-account
+   Les anciennes URLs du front (/api/auth/signup, /api/account/delete...)
+   continuent de fonctionner à l'identique grâce aux rewrites dans
+   vercel.json — aucun changement à faire dans shared-data.js.
    ========================================================================== */
 
-const { sql } = require('../../lib/db');
-const { hashPassword, verifyPassword } = require('../../lib/password');
-const { getSession, setSessionCookie, clearSessionCookie } = require('../../lib/session');
+const crypto = require('crypto');
+const { sql } = require('../lib/db');
+const { hashPassword, verifyPassword } = require('../lib/password');
+const { getSession, setSessionCookie, clearSessionCookie } = require('../lib/session');
 
 function isValidEmail(v) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
@@ -82,14 +85,24 @@ async function handleMe(req, res) {
   res.status(200).json({ user: { id: user.id, email: user.email, name: user.name, role: user.role } });
 }
 
+async function handleDeleteAccount(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Méthode non autorisée.' });
+  const session = getSession(req);
+  if (!session) return res.status(401).json({ error: 'Non connecté.' });
+
+  const anonEmail = `deleted-${session.uid}-${crypto.randomBytes(4).toString('hex')}@deleted.local`;
+  await sql`
+    update users
+    set email = ${anonEmail}, name = '', password_hash = '', password_salt = '', deleted_at = now()
+    where id = ${session.uid}
+  `;
+  clearSessionCookie(res);
+  res.status(200).json({ ok: true, message: 'Compte supprimé.' });
+}
+
 module.exports = async (req, res) => {
-  // Route selon ?action=... (ou le dernier segment de l'URL en secours)
   const url = new URL(req.url, `https://${req.headers.host}`);
-  let action = url.searchParams.get('action');
-  if (!action) {
-    const parts = url.pathname.split('/').filter(Boolean); // ex: ['api','auth','login']
-    action = parts[parts.length - 1] === 'auth' ? '' : parts[parts.length - 1];
-  }
+  const action = url.searchParams.get('action');
 
   try {
     switch (action) {
@@ -101,6 +114,8 @@ module.exports = async (req, res) => {
         return await handleLogout(req, res);
       case 'me':
         return await handleMe(req, res);
+      case 'delete-account':
+        return await handleDeleteAccount(req, res);
       default:
         res.status(404).json({ error: 'Action inconnue.' });
     }

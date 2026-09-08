@@ -70,10 +70,6 @@ module.exports = async (req, res) => {
       orderItems.push({ name, qty: 1, unitPrice: t / 100, customOrder: body.customOrder });
 
     // ---- Cas 3 : article libre (ex. acompte atelier, workshop.html) ----
-    // NB : les ateliers ne sont pas encore en base (voir shared-data.js),
-    // donc le montant vient du client ici. On le borne à une plage
-    // raisonnable pour limiter les abus, mais une vraie garantie
-    // nécessiterait de migrer aussi les ateliers en base plus tard.
     } else if (body.customItem && body.customItem.name) {
       const cleanAmount = Math.max(50, Math.min(500000, Math.round(Number(body.customItem.unitAmount) || 0)));
       if (!cleanAmount) {
@@ -103,10 +99,6 @@ module.exports = async (req, res) => {
       cancel_url: `${origin}/boutique.html`,
     });
 
-    // La commande est créée en base tout de suite, statut "pending" — le
-    // webhook Stripe la passera à "paid" (ou "failed") une fois le paiement
-    // confirmé (voir api/webhook.js). success.html la retrouve ensuite via
-    // stripe_session_id.
     await sql`
       insert into orders (stripe_session_id, user_id, status, items, total_cents, linked_to_account)
       values (${checkoutSession.id}, ${session ? session.uid : null}, 'pending', ${JSON.stringify(orderItems)}, ${totalCents}, ${!!session})

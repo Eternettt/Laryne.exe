@@ -11,5 +11,8 @@
   "dependencies": {
     "stripe": "^16.0.0",
     "@vercel/postgres": "^0.10.0"
+  },
+  "allowScripts": {
+    "bufferutil": false
   }
 }
