@@ -650,14 +650,26 @@
 </script>
 
 <script>
-  const popups = document.querySelectorAll('.vista-window');
-  // Toujours interroger le DOM à nouveau ici : popup6 (Admin) peut être retiré
-  // dynamiquement (bouton "Continuer en tant qu'utilisateur"), et la NodeList
-  // `popups` ci-dessus reste figée sur l'état du DOM au moment du chargement.
-  // Sans ça, un popup retiré continuait à être compté (et donc à jouer son son).
+  // ==========================================================================
+  // MODE TEMPORAIRE : le menu ne propose que le popup Boutique (+ le popup
+  // Admin pour les personnes réellement connectées en admin).
+  // Pour tout remettre comme avant (Connexion, Contact, Commande Perso,
+  // Showroom privé), repasse simplement cette constante à false — rien
+  // d'autre n'a été supprimé, tout le reste du code est inchangé.
+  // ==========================================================================
+  const MENU_BOUTIQUE_ONLY = true;
+
+  // Toujours interroger le DOM à nouveau ici : popup6 (Admin) est retiré du
+  // DOM par initAdminPopup() ci-dessus si la personne n'est pas admin — donc
+  // document.getElementById('popup6') renverra naturellement null pour tout
+  // le monde sauf les admins, sans qu'on ait à revérifier le rôle ici.
   function getPopups() {
+    if (MENU_BOUTIQUE_ONLY) {
+      return [document.getElementById('popup2'), document.getElementById('popup6')].filter(Boolean);
+    }
     return document.querySelectorAll('.vista-window');
   }
+  const popups = getPopups();
   const menuBtn = document.getElementById('menu-btn');
   const headerEl = document.querySelector('header');
   let spawnTimeouts = [];
