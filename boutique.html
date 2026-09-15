@@ -157,7 +157,7 @@
   .product-card .price { font-size: 1.25em; font-weight: 700; margin-bottom: 6px; color: #1a1a1a; }
   .product-card .stock { font-size: 0.875em; margin-bottom: 10px; font-weight: 600; }
   .stock.ok { color: #0a7d2c; }
-  .stock.low { color: #a8690a; }
+  .stock.low { color: #d97706; }
   .stock.out { color: #c0392b; }
 
   .product-card button {
@@ -1017,11 +1017,38 @@ async function loadProductsFromServer() {
     }
     p.img = p.images[0];
     p.sizes = ["XS", "S", "M", "L", "XL"];
-    // Types dispo (tanga, string, culotte...) : rétrocompatibilité avec les
-    // anciens produits qui n'avaient qu'une "catégorie" unique.
-    if (!Array.isArray(p.types)) p.types = p.category ? [p.category] : [];
+    // Types dispo (tanga, string, culotte...) : le serveur peut les renvoyer
+    // en tableau, en chaîne JSON, ou pas du tout (anciens produits qui
+    // n'avaient qu'une "catégorie" unique du style "Culotte / Shorty").
+    // On normalise toujours en tableau pour que la fenêtre "Type" propose
+    // bien un bouton par type, comme pour les tailles.
+    p.types = normalizeTypes(p);
     if (!p.description) p.description = "";
   });
+}
+
+// ---- Transforme en tableau ce que le serveur renvoie comme "types" ----
+function normalizeTypes(p) {
+  let raw = p.types;
+
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw);
+      raw = Array.isArray(parsed) ? parsed : raw;
+    } catch (e) { /* pas du JSON : on traitera comme du texte juste en dessous */ }
+  }
+
+  if (!Array.isArray(raw)) {
+    // Ni tableau ni JSON : on découpe le texte sur "/" ou "," — c'est ainsi
+    // que les catégories multiples ont toujours été écrites ("Tanga / String").
+    raw = String(raw || p.category || '').split(/[\/,]/);
+  }
+
+  const types = raw
+    .map(t => String(t == null ? '' : t).trim())
+    .filter(Boolean);
+
+  return [...new Set(types)];
 }
 
 let cart = {}; // { productId: quantity }
@@ -1078,8 +1105,11 @@ function productContentHTML(p, stockClass, stockLabel) {
 }
 
 function updateCardContent(card, p) {
+  // Le client ne voit jamais le nombre d'articles restants : seulement
+  // "En stock" (vert, ou orange quand il en reste peu) ou "Rupture de stock"
+  // (rouge). Le stock chiffré reste visible dans le panneau Gestion.
   const stockClass = p.stock === 0 ? "out" : p.stock <= 5 ? "low" : "ok";
-  const stockLabel = p.stock === 0 ? "Rupture de stock" : p.stock <= 5 ? `Plus que ${p.stock} en stock` : "En stock";
+  const stockLabel = p.stock === 0 ? "Rupture de stock" : "En stock";
 
   if (p.postit) {
     const overall = (p.postitSize || 100) / 100;
