@@ -31,6 +31,7 @@ function toClientProduct(r) {
     id: r.id,
     name: r.name,
     category: r.category,
+    description: r.description || '',
     price: r.price_cents / 100,
     stock: r.stock,
     icon: r.icon,
@@ -50,7 +51,7 @@ module.exports = async (req, res) => {
         return;
       }
       const { rows } = await sql`
-        select id, name, category, price_cents, stock, icon, images from products order by id asc
+        select id, name, category, description, price_cents, stock, icon, images from products order by id asc
       `;
       res.status(200).json({ products: rows.map(toClientProduct) });
       return;
@@ -62,30 +63,30 @@ module.exports = async (req, res) => {
 
     if (req.method === 'GET') {
       const { rows } = await sql`
-        select id, name, category, price_cents, stock, icon, images from products order by id asc
+        select id, name, category, description, price_cents, stock, icon, images from products order by id asc
       `;
       res.status(200).json({ products: rows.map(toClientProduct) });
       return;
     }
 
     if (req.method === 'POST') {
-      const { name, category, price, stock, icon, images } = req.body || {};
+      const { name, category, description, price, stock, icon, images } = req.body || {};
       if (!name) {
         res.status(400).json({ error: 'Nom requis.' });
         return;
       }
       const priceCents = Math.round((Number(price) || 0) * 100);
       const { rows } = await sql`
-        insert into products (name, category, price_cents, stock, icon, images)
-        values (${name}, ${category || ''}, ${priceCents}, ${Number(stock) || 0}, ${icon || ''}, ${JSON.stringify(images || [])})
-        returning id, name, category, price_cents, stock, icon, images
+        insert into products (name, category, description, price_cents, stock, icon, images)
+        values (${name}, ${category || ''}, ${description || ''}, ${priceCents}, ${Number(stock) || 0}, ${icon || ''}, ${JSON.stringify(images || [])})
+        returning id, name, category, description, price_cents, stock, icon, images
       `;
       res.status(200).json({ product: toClientProduct(rows[0]) });
       return;
     }
 
     if (req.method === 'PUT') {
-      const { id, name, category, price, stock, icon, images } = req.body || {};
+      const { id, name, category, description, price, stock, icon, images } = req.body || {};
       if (!id) {
         res.status(400).json({ error: 'id requis.' });
         return;
@@ -99,13 +100,14 @@ module.exports = async (req, res) => {
 
       if (name !== undefined) await sql`update products set name = ${name}, updated_at = now() where id = ${id}`;
       if (category !== undefined) await sql`update products set category = ${category}, updated_at = now() where id = ${id}`;
+      if (description !== undefined) await sql`update products set description = ${description}, updated_at = now() where id = ${id}`;
       if (price !== undefined) await sql`update products set price_cents = ${Math.round(Number(price) * 100)}, updated_at = now() where id = ${id}`;
       if (stock !== undefined) await sql`update products set stock = ${Number(stock)}, updated_at = now() where id = ${id}`;
       if (icon !== undefined) await sql`update products set icon = ${icon}, updated_at = now() where id = ${id}`;
       if (images !== undefined) await sql`update products set images = ${JSON.stringify(images)}, updated_at = now() where id = ${id}`;
 
       const { rows } = await sql`
-        select id, name, category, price_cents, stock, icon, images from products where id = ${id}
+        select id, name, category, description, price_cents, stock, icon, images from products where id = ${id}
       `;
       res.status(200).json({ product: toClientProduct(rows[0]) });
       return;
