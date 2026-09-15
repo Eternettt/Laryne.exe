@@ -25,12 +25,19 @@ function stringzEscapeHtml(value) {
 
 // ---- Petit wrapper fetch JSON, envoie toujours le cookie de session ----
 async function stringzApiFetch(path, options = {}) {
-  const res = await fetch(path, {
-    credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
-    ...options,
-    body: options.body ? JSON.stringify(options.body) : undefined,
-  });
+  let res;
+  try {
+    res = await fetch(path, {
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+      ...options,
+      body: options.body ? JSON.stringify(options.body) : undefined,
+    });
+  } catch (e) {
+    // API injoignable (pas de backend, coupure réseau...) : on renvoie un
+    // échec propre plutôt que de laisser planter tout le code appelant.
+    return { ok: false, status: 0, data: { error: 'Serveur injoignable.' } };
+  }
   let data = {};
   try { data = await res.json(); } catch (e) { /* réponse vide */ }
   return { ok: res.ok, status: res.status, data };

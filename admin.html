@@ -135,6 +135,58 @@
   .field-row > * { flex: 1; }
   .field-label { font-size: 10px; color: #b06084; font-weight: bold; text-transform: uppercase; margin-bottom: -2px; }
 
+  /* ---- Types disponibles (tanga, string, culotte, etc.) ---- */
+  .type-checkboxes { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 6px; }
+  .type-check {
+    display: flex; align-items: center; gap: 4px;
+    padding: 4px 9px 4px 7px;
+    background: #fff;
+    border: 1px solid #ea8fb8;
+    border-radius: 14px;
+    font-size: 11px;
+    color: #7a2350;
+    cursor: pointer;
+    user-select: none;
+  }
+  .type-check input { margin: 0; cursor: pointer; }
+  .type-check:has(input:checked) { background: #fdeaf2; border-color: #c2477a; font-weight: bold; }
+  .add-type-row { display: flex; gap: 6px; margin-bottom: 8px; }
+  .add-type-input {
+    flex: 1;
+    padding: 6px 8px;
+    border: 1px dashed #ea8fb8;
+    border-radius: 6px;
+    font-size: 12px;
+    background: #fff;
+    color: #4a1a30;
+  }
+  .add-type-btn {
+    padding: 6px 10px;
+    background: #fff;
+    border: 1px dashed #ea8fb8;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: bold;
+    color: #7a2350;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .add-type-btn:hover { background: #fdeaf2; }
+
+  .model-description {
+    width: 100%;
+    padding: 7px 9px;
+    border: 1px solid #ea8fb8;
+    border-radius: 6px;
+    font-size: 12px;
+    font-family: inherit;
+    line-height: 1.4;
+    resize: vertical;
+    min-height: 56px;
+    background: #fff;
+    color: #4a1a30;
+  }
+
   .stock-row { display: flex; align-items: center; gap: 8px; }
   .stock-row input { width: 70px; }
   .stock-badge { font-size: 11px; padding: 3px 8px; border-radius: 10px; font-weight: bold; }
@@ -605,6 +657,17 @@
   let products = [];
   let iconTargetId = null;
 
+  // ---- Types disponibles (tanga, string, culotte, etc.) ----
+  // Vocabulaire de base + tout type déjà utilisé par un produit existant.
+  // Un type "connu" apparaît en case à cocher sur CHAQUE modèle ; l'admin
+  // choisit lesquels sont dispo pour tel ou tel modèle, et peut en ajouter
+  // de nouveaux à la volée (voir addCustomType()).
+  const TYPE_CHOICES = ['String', 'Tanga', 'Culotte', 'Shorty', 'Brésilienne', 'Boxer'];
+  let knownTypes = new Set(TYPE_CHOICES);
+  function collectKnownTypes() {
+    products.forEach(p => (p.types || []).forEach(t => knownTypes.add(t)));
+  }
+
   let workshops = [];
   let workshopDraft = null;   // état du formulaire en cours (création ou édition)
   let workshopEditingId = null; // null = création, sinon id de l'atelier édité
@@ -645,12 +708,20 @@
   async function reloadProductsFromServer() {
     const list = await stringzAdminListProducts();
     if (list) {
-      products = list.map(p => ({ ...p, price: p.price ?? p.price_cents / 100 }));
+      products = list.map(p => ({
+        ...p,
+        price: p.price ?? p.price_cents / 100,
+        // Rétrocompatibilité : les anciens produits n'ont qu'une "catégorie"
+        // unique — on la reprend comme premier type dispo si "types" n'existe pas encore.
+        types: Array.isArray(p.types) ? p.types : (p.category ? [p.category] : []),
+        description: p.description || '',
+      }));
     }
     return list;
   }
 
   function renderModels() {
+    collectKnownTypes();
     const list = document.getElementById('models-list');
     list.innerHTML = '';
 
@@ -671,21 +742,32 @@
         <div class="model-fields">
           <div class="field-label">Nom</div>
           <input type="text" value="${stringzEscapeHtml(p.name)}" onchange="updateField(${p.id}, 'name', this.value)">
-          <div class="field-row">
-            <div>
-              <div class="field-label">Catégorie</div>
-              <input type="text" value="${stringzEscapeHtml(p.category)}" onchange="updateField(${p.id}, 'category', this.value)">
-            </div>
-            <div>
-              <div class="field-label">Prix (€)</div>
-              <input type="number" step="0.01" min="0" value="${p.price}" onchange="updateField(${p.id}, 'price', this.value)">
-            </div>
+
+          <div class="field-label">Types disponibles</div>
+          <div class="type-checkboxes" id="type-checks-${p.id}">
+            ${[...knownTypes].map(t => `
+              <label class="type-check">
+                <input type="checkbox" data-type="${stringzEscapeHtml(t)}" ${(p.types || []).includes(t) ? 'checked' : ''}>
+                ${stringzEscapeHtml(t)}
+              </label>
+            `).join('')}
           </div>
+          <div class="add-type-row">
+            <input type="text" class="add-type-input" id="new-type-${p.id}" placeholder="Nouveau type (ex : Brésilienne)">
+            <button type="button" class="add-type-btn" data-add-type="${p.id}">+ Ajouter</button>
+          </div>
+
+          <div class="field-label">Prix (€)</div>
+          <input type="number" step="0.01" min="0" value="${p.price}" onchange="updateField(${p.id}, 'price', this.value)">
+
           <div class="field-label">Stock</div>
           <div class="stock-row">
             <input type="number" min="0" step="1" value="${p.stock}" onchange="updateField(${p.id}, 'stock', this.value)">
             <span class="stock-badge ${stockClass}">${stockLabel}</span>
           </div>
+
+          <div class="field-label">Description</div>
+          <textarea class="model-description" placeholder="Décris ce modèle (matière, coupe, détails...)" onchange="updateField(${p.id}, 'description', this.value)">${stringzEscapeHtml(p.description || '')}</textarea>
         </div>
 
         <div class="model-images-col">
@@ -709,6 +791,15 @@
         </div>
       `;
       list.appendChild(card);
+
+      // Cases à cocher "types disponibles" + bouton "+ Ajouter" : en délégué
+      // via data-attributes plutôt qu'en attribut onclick, pour ne pas avoir
+      // à échapper les guillemets dans un nom de type saisi librement.
+      card.querySelectorAll('.type-check input[type="checkbox"]').forEach(cb => {
+        cb.addEventListener('change', () => toggleProductType(p.id, cb.dataset.type, cb.checked));
+      });
+      const addBtn = card.querySelector('.add-type-btn');
+      if (addBtn) addBtn.addEventListener('click', () => addCustomType(p.id));
     });
   }
 
@@ -719,13 +810,51 @@
     if (field === 'price') patch.price = Math.max(0, parseFloat(rawValue)) || 0;
     else if (field === 'stock') patch.stock = Math.max(0, parseInt(rawValue, 10)) || 0;
     else if (field === 'name') patch.name = rawValue.trim() || p.name;
-    else if (field === 'category') patch.category = rawValue.trim() || p.category;
+    else if (field === 'description') patch.description = rawValue;
 
     const result = await stringzAdminUpdateProduct(id, patch);
     if (!result.ok) { showToast(result.data.error || 'Erreur lors de la mise à jour.'); await reloadProductsFromServer(); renderModels(); return; }
     Object.assign(p, patch);
     showToast('Enregistré ✓');
     renderModels();
+  }
+
+  // Coche/décoche un type dispo pour un modèle. "category" est recalculée
+  // en même temps (types réunis) pour rester compatible avec tout code
+  // serveur qui s'attendrait encore à ce champ.
+  async function toggleProductType(id, type, checked) {
+    const p = products.find(x => x.id === id);
+    if (!p) return;
+    const current = new Set(p.types || []);
+    if (checked) current.add(type); else current.delete(type);
+    const types = [...current];
+    const patch = { types, category: types.join(' / ') || p.category || '' };
+
+    const result = await stringzAdminUpdateProduct(id, patch);
+    if (!result.ok) { showToast(result.data.error || 'Erreur lors de la mise à jour.'); await reloadProductsFromServer(); renderModels(); return; }
+    Object.assign(p, patch);
+    showToast('Enregistré ✓');
+  }
+
+  // Ajoute un nouveau type au vocabulaire commun (visible sur tous les
+  // modèles ensuite) et le coche directement pour ce modèle-ci.
+  async function addCustomType(id) {
+    const input = document.getElementById(`new-type-${id}`);
+    const name = (input.value || '').trim();
+    if (!name) return;
+    input.value = '';
+
+    knownTypes.add(name);
+    const p = products.find(x => x.id === id);
+    if (!p) return;
+    const types = [...new Set([...(p.types || []), name])];
+    const patch = { types, category: types.join(' / ') || p.category || '' };
+
+    const result = await stringzAdminUpdateProduct(id, patch);
+    if (!result.ok) { showToast(result.data.error || "Erreur lors de l'ajout du type."); await reloadProductsFromServer(); renderModels(); return; }
+    Object.assign(p, patch);
+    renderModels(); // le nouveau type doit apparaître en case à cocher sur tous les modèles
+    showToast(`Type "${name}" ajouté ✓`);
   }
 
   // Icône produit : soit un emoji (texte court), soit une image uploadée
@@ -851,13 +980,15 @@
     const result = await stringzAdminCreateProduct({
       name: 'Nouveau modèle',
       category: 'String',
+      types: ['String'],
+      description: '',
       price: 29.9,
       stock: 10,
       icon: '🩲',
       images: [`https://placehold.co/300x200?text=Nouveau+modele`],
     });
     if (!result.ok) { showToast(result.data.error || 'Erreur lors de la création.'); return; }
-    products.push(result.data.product);
+    products.push({ ...result.data.product, types: result.data.product.types || ['String'], description: result.data.product.description || '' });
     renderModels();
     showToast('Nouveau modèle ajouté ✓');
   }

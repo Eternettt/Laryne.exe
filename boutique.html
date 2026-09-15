@@ -439,23 +439,30 @@
     cursor: pointer; font-weight: bold; font-size: 12px;
   }
 
-  /* Positions ordonnées : toujours fixes, bien espacées en grille 2x2 */
-  #pwin-photos { top: calc(50% - 300px); left: calc(50% - 380px); }
-  #pwin-size   { top: calc(50% - 300px); left: calc(50% + 100px); }
-  #pwin-cart   { top: calc(50% + 70px);  left: calc(50% - 380px); }
-  #pwin-note   { top: calc(50% + 70px);  left: calc(50% + 100px); }
+  /* Positions ordonnées : toujours fixes, bien espacées en grille 3x2 */
+  #pwin-photos      { top: calc(50% - 320px); left: calc(50% - 430px); }
+  #pwin-description { top: calc(50% - 320px); left: calc(50% - 135px); }
+  #pwin-type        { top: calc(50% - 320px); left: calc(50% + 160px); }
+  #pwin-size        { top: calc(50% + 40px);  left: calc(50% - 430px); }
+  #pwin-cart        { top: calc(50% + 40px);  left: calc(50% - 135px); }
+  #pwin-note        { top: calc(50% + 40px);  left: calc(50% + 160px); }
+
+  #pwin-description .pwin-body { max-height: 220px; overflow-y: auto; line-height: 1.5; }
+  #pwin-description .pwin-body p:empty::before,
+  #pwin-description-empty { color: #666; font-style: italic; }
 
   @media (max-width: 640px) {
     .pwin { width: 88vw; left: 6vw !important; }
 
-    /* Les 4 fenêtres de détail produit (photos / taille / panier / remarque)
-       sont empilées dynamiquement en JS (voir layoutPwinsForMobile) : chacune
-       est positionnée juste sous la précédente, en fonction de sa hauteur
-       réelle. Ça garantit qu'elles ne se chevauchent jamais, quelle que soit
-       la quantité de contenu (nombre de photos, tailles disponibles, etc.).
-       "position: absolute" (et non "fixed") pour qu'on puisse scroller la
-       page si l'empilement dépasse la hauteur de l'écran. */
-    #pwin-photos, #pwin-size, #pwin-cart, #pwin-note {
+    /* Les 6 fenêtres de détail produit (photos / description / type / taille /
+       panier / remarque) sont empilées dynamiquement en JS (voir
+       layoutPwinsForMobile) : chacune est positionnée juste sous la
+       précédente, en fonction de sa hauteur réelle. Ça garantit qu'elles ne
+       se chevauchent jamais, quelle que soit la quantité de contenu (nombre
+       de photos, tailles/types disponibles, etc.). "position: absolute"
+       (et non "fixed") pour qu'on puisse scroller la page si l'empilement
+       dépasse la hauteur de l'écran. */
+    #pwin-photos, #pwin-description, #pwin-type, #pwin-size, #pwin-cart, #pwin-note {
       position: absolute;
     }
 
@@ -693,7 +700,7 @@
 <div class="toolbar">
   <input type="text" id="search" placeholder="Rechercher un produit..." aria-label="Rechercher un produit" oninput="renderProducts()">
   <select id="category-filter" onchange="renderProducts()">
-    <option value="">Toutes catégories</option>
+    <option value="">Tous les types</option>
   </select>
   <select id="sort" onchange="renderProducts()">
     <option value="default">Trier par défaut</option>
@@ -745,6 +752,27 @@
       <input type="file" id="pwin-photo-replace" accept="image/*" onchange="replaceCurrentImage(event)" style="display:none;">
       <button type="button" class="photo-edit-btn" onclick="deleteCurrentImage()" title="Supprimer cette image">🗑 Supprimer</button>
     </div>
+  </div>
+</div>
+
+<div class="pwin" id="pwin-description">
+  <div class="pwin-titlebar">
+    <span class="pwin-title">Description</span>
+    <div class="pwin-close" onclick="closeProductWindows()">✕</div>
+  </div>
+  <div class="pwin-body" id="pwin-description-body">
+    <p id="pwin-description-empty">Aucune description pour ce modèle.</p>
+  </div>
+</div>
+
+<div class="pwin" id="pwin-type">
+  <div class="pwin-titlebar">
+    <span class="pwin-title">Type</span>
+    <div class="pwin-close" onclick="closeProductWindows()">✕</div>
+  </div>
+  <div class="pwin-body">
+    <p style="text-align:center;margin-bottom:6px;" id="pwin-type-label">Choisis ton type :</p>
+    <div class="size-options" id="pwin-type-options"></div>
   </div>
 </div>
 
@@ -876,8 +904,12 @@
         <input type="text" id="new-model-name" placeholder="Ex : String 6" required>
       </div>
       <div class="nm-field">
-        <label for="new-model-category">Catégorie</label>
-        <input type="text" id="new-model-category" placeholder="Ex : String" required>
+        <label for="new-model-types">Types disponibles (séparés par une virgule)</label>
+        <input type="text" id="new-model-types" placeholder="Ex : Tanga, String, Culotte" required>
+      </div>
+      <div class="nm-field">
+        <label for="new-model-description">Description (optionnel)</label>
+        <input type="text" id="new-model-description" placeholder="Matière, coupe, détails...">
       </div>
       <div class="nm-field">
         <label for="new-model-price">Prix (€)</label>
@@ -905,12 +937,81 @@
 // appelée au démarrage, tout en bas de ce script.
 let products = [];
 
+// Produits d'exemple : affichés uniquement si /api/products ne renvoie rien
+// (boutique vide ou pas encore de backend branché), pour prévisualiser le
+// rendu (types multiples, description, stock...). Dès que le serveur renvoie
+// de vrais produits, cette liste n'est jamais utilisée.
+const DEMO_PRODUCTS = [
+  {
+    id: -1,
+    name: "String Fraise",
+    category: "String",
+    types: ["String"],
+    description: "Dentelle rouge fraise, coupe basse et légère.\n\nTissu doux, élastique fin, parfait pour tous les jours.",
+    price: 24.90,
+    stock: 12,
+    icon: "🍓",
+  },
+  {
+    id: -2,
+    name: "Nuit Étoilée",
+    category: "Tanga / String",
+    types: ["Tanga", "String"],
+    description: "Motif étoilé sur fond noir, disponible en tanga ou en string selon tes envies.",
+    price: 27.90,
+    stock: 8,
+    icon: "✨",
+  },
+  {
+    id: -3,
+    name: "Douceur Pêche",
+    category: "Culotte / Shorty",
+    types: ["Culotte", "Shorty"],
+    description: "Coupe confortable et couvrante, coton doux, taille haute.",
+    price: 22.90,
+    stock: 5,
+    icon: "🍑",
+  },
+  {
+    id: -4,
+    name: "Rose Brésilienne",
+    category: "Brésilienne / Tanga / String",
+    types: ["Brésilienne", "Tanga", "String"],
+    description: "Set 3-en-1 : la même dentelle rose, à porter comme tu préfères.\n\nActuellement en rupture, réassort prévu bientôt.",
+    price: 29.90,
+    stock: 0,
+    icon: "🌹",
+  },
+  {
+    id: -5,
+    name: "Confort Nuit",
+    category: "Boxer",
+    types: ["Boxer"],
+    description: "Boxer en coton stretch, taille basse, pour dormir ou se détendre.",
+    price: 26.90,
+    stock: 15,
+    icon: "🌙",
+  },
+];
+
 async function loadProductsFromServer() {
-  products = await stringzFetchProducts();
+  let fetched = [];
+  try {
+    fetched = await stringzFetchProducts();
+  } catch (e) {
+    // Pas de backend joignable (site ouvert en local, API pas encore branchée...) :
+    // on retombe sur les produits d'exemple au lieu de planter le chargement.
+    fetched = [];
+  }
+  products = (fetched && fetched.length) ? fetched : JSON.parse(JSON.stringify(DEMO_PRODUCTS));
   // Génère 3 photos et une liste de tailles pour chaque produit (démo)
   products.forEach(p => {
     p.images = [1, 2, 3].map(n => `https://placehold.co/500x400?text=${encodeURIComponent(p.name + ' - Vue ' + n)}`);
     p.sizes = ["XS", "S", "M", "L", "XL"];
+    // Types dispo (tanga, string, culotte...) : rétrocompatibilité avec les
+    // anciens produits qui n'avaient qu'une "catégorie" unique.
+    if (!Array.isArray(p.types)) p.types = p.category ? [p.category] : [];
+    if (!p.description) p.description = "";
   });
 }
 
@@ -921,16 +1022,19 @@ const remarks = {};      // { productId: texte de la remarque }
 let currentProduct = null;
 let galleryIndex = 0;
 let selectedSize = null;
+let selectedType = null;
 let detailQty = 1;
 
-// ---- Initialisation des catégories ----
+// ---- Initialisation du filtre "type" (tanga, string, culotte...) ----
+// Basé sur les types dispo de chaque produit (p.types), pas sur une
+// catégorie unique : un même modèle peut apparaître sous plusieurs types.
 function initCategories() {
-  const categories = [...new Set(products.map(p => p.category))];
+  const types = [...new Set(products.flatMap(p => p.types || []))];
   const select = document.getElementById("category-filter");
-  categories.forEach(cat => {
+  types.forEach(type => {
     const opt = document.createElement("option");
-    opt.value = cat;
-    opt.textContent = cat;
+    opt.value = type;
+    opt.textContent = type;
     select.appendChild(opt);
   });
 }
@@ -955,7 +1059,7 @@ function productContentHTML(p, stockClass, stockLabel) {
     ${(typeof p.icon === 'string' && p.icon.startsWith('data:image')) ? `<div class="product-icon-badge"><img src="${stringzEscapeHtml(p.icon)}" alt=""></div>` : (p.icon ? `<div class="product-icon-badge">${stringzEscapeHtml(p.icon)}</div>` : "")}
     <img src="${stringzEscapeHtml((p.images && p.images[0]) || p.img)}" alt="${stringzEscapeHtml(p.name)}">
     <h3>${stringzEscapeHtml(p.name)}</h3>
-    <div class="cat">${stringzEscapeHtml(p.category)}</div>
+    <div class="cat">${stringzEscapeHtml((p.types && p.types.length) ? p.types.join(' / ') : p.category)}</div>
     <div class="price">${p.price.toFixed(2).replace('.', ',')} €</div>
     <div class="stock ${stockClass}">${stockLabel}</div>
     <button ${p.stock === 0 ? "disabled" : ""} onclick="event.stopPropagation(); openProductWindows(${p.id})">
@@ -1045,7 +1149,7 @@ function renderProducts() {
 
   let list = products.filter(p =>
     p.name.toLowerCase().includes(search) &&
-    (category === "" || p.category === category)
+    (category === "" || (p.types || []).includes(category))
   );
 
   if (sort === "price-asc") list.sort((a,b) => a.price - b.price);
@@ -1213,7 +1317,7 @@ function showToast(msg) {
 }
 
 // ---- Fenêtres de détail produit (photos / taille / panier / remarque) ----
-const PWIN_IDS = ["pwin-photos", "pwin-size", "pwin-cart", "pwin-note"];
+const PWIN_IDS = ["pwin-photos", "pwin-description", "pwin-type", "pwin-size", "pwin-cart", "pwin-note"];
 
 // Compteur de z-index partagé par toutes les fenêtres pwin (drag ou ouverture programmatique)
 let pwinTopZ = 41;
@@ -1234,11 +1338,14 @@ function openProductWindows(id) {
 
   galleryIndex = 0;
   selectedSize = null;
+  selectedType = null;
   detailQty = 1;
 
   document.getElementById("pwin-note-text").value = remarks[id] || "";
 
   renderGallery();
+  renderDescriptionWindow();
+  renderTypeOptions();
   renderSizeOptions();
   renderDetailCart();
 
@@ -1439,14 +1546,19 @@ function renderAdminList() {
       <div class="admin-fields">
         <input type="text" class="admin-name-input" value="${stringzEscapeHtml(p.name)}"
                onchange="updateProductField(${p.id}, 'name', this.value)">
-        <input type="text" value="${stringzEscapeHtml(p.category)}"
-               onchange="updateProductField(${p.id}, 'category', this.value)">
+        <input type="text" value="${stringzEscapeHtml((p.types || []).join(', '))}"
+               title="Types dispo, séparés par une virgule"
+               placeholder="Ex : Tanga, String, Culotte"
+               onchange="updateProductField(${p.id}, 'types', this.value)">
         <div class="admin-fields-row">
           <input type="number" step="0.01" min="0" value="${p.price}"
                  onchange="updateProductField(${p.id}, 'price', this.value)" title="Prix (€)">
           <input type="number" step="1" min="0" value="${p.stock}"
                  onchange="updateProductField(${p.id}, 'stock', this.value)" title="Stock">
         </div>
+        <textarea rows="2" placeholder="Description"
+                  style="width:100%;padding:4px 6px;border:1px solid #888;font-size:11px;font-family:inherit;resize:vertical;box-sizing:border-box;"
+                  onchange="updateProductField(${p.id}, 'description', this.value)">${stringzEscapeHtml(p.description || '')}</textarea>
       </div>
       <button type="button" class="admin-photo-btn" title="Modifier les photos" onclick="openPhotosOnly(${p.id})">📷</button>
       <button type="button" class="admin-photo-btn" title="Personnaliser le post-it" onclick="openPostitEditor(${p.id})">🖼️</button>
@@ -1602,8 +1714,12 @@ async function updateProductField(id, field, rawValue) {
     patch.stock = Math.max(0, parseInt(rawValue, 10)) || 0;
   } else if (field === "name") {
     patch.name = rawValue.trim() || p.name;
-  } else if (field === "category") {
-    patch.category = rawValue.trim() || p.category;
+  } else if (field === "types") {
+    // Liste de types séparés par une virgule (ex : "Tanga, String, Culotte")
+    patch.types = rawValue.split(",").map(t => t.trim()).filter(Boolean);
+    patch.category = patch.types.join(" / ") || p.category; // rétrocompat
+  } else if (field === "description") {
+    patch.description = rawValue;
   }
 
   // Écrit d'abord côté serveur (seule source de vérité, vérifiée admin) —
@@ -1618,7 +1734,7 @@ async function updateProductField(id, field, rawValue) {
   }
 
   Object.assign(p, patch);
-  if (field === "category") addCategoryOptionIfNew(p.category);
+  if (field === "types") p.types.forEach(t => addCategoryOptionIfNew(t));
 
   renderProducts();
   showToast("Article mis à jour.");
@@ -1659,7 +1775,7 @@ function openModelPicker() {
 function renderModelPickerList() {
   const container = document.getElementById("model-picker-list");
   container.innerHTML = products.map(p =>
-    `<button type="button" class="model-pick-btn" onclick="selectModelForImage(${p.id})">${stringzEscapeHtml(p.name)} <span class="model-pick-cat">(${stringzEscapeHtml(p.category)})</span></button>`
+    `<button type="button" class="model-pick-btn" onclick="selectModelForImage(${p.id})">${stringzEscapeHtml(p.name)} <span class="model-pick-cat">(${stringzEscapeHtml((p.types && p.types.length) ? p.types.join(', ') : p.category)})</span></button>`
   ).join("");
 }
 
@@ -1692,25 +1808,30 @@ function handleCreateModel(event) {
   event.preventDefault();
 
   const name = document.getElementById("new-model-name").value.trim();
-  const category = document.getElementById("new-model-category").value.trim();
+  const typesRaw = document.getElementById("new-model-types").value.trim();
+  const description = document.getElementById("new-model-description").value.trim();
   const price = parseFloat(document.getElementById("new-model-price").value);
   const stock = parseInt(document.getElementById("new-model-stock").value, 10);
   const fileInput = document.getElementById("new-model-image");
 
-  if (!name || !category || isNaN(price) || price < 0 || isNaN(stock) || stock < 0) {
+  const types = typesRaw.split(",").map(t => t.trim()).filter(Boolean);
+
+  if (!name || types.length === 0 || isNaN(price) || price < 0 || isNaN(stock) || stock < 0) {
     showToast("Merci de remplir correctement tous les champs.");
     return false;
   }
 
+  const category = types.join(" / "); // rétrocompat pour tout code serveur qui attend encore ce champ
+
   async function finalizeCreate(imageUrl) {
     const img = imageUrl || `https://placehold.co/500x400?text=${encodeURIComponent(name)}`;
-    const result = await stringzAdminCreateProduct({ name, category, price, stock, icon: '', images: [img] });
+    const result = await stringzAdminCreateProduct({ name, category, types, description, price, stock, icon: '', images: [img] });
     if (!result.ok) {
       showToast(result.data.error || "Impossible de créer ce produit.", true);
       return;
     }
     await loadProductsFromServer();
-    addCategoryOptionIfNew(category);
+    types.forEach(t => addCategoryOptionIfNew(t));
     renderProducts();
     closeAllMenuPopups();
     showToast(`Nouveau modèle "${name}" ajouté (stock : ${stock}).`);
@@ -1725,6 +1846,48 @@ function handleCreateModel(event) {
     finalizeCreate(null);
   }
   return false;
+}
+
+// -- Description --
+function renderDescriptionWindow() {
+  const body = document.getElementById("pwin-description-body");
+  const text = (currentProduct.description || "").trim();
+  body.innerHTML = text
+    ? text.split(/\n\s*\n/).map(para => `<p>${stringzEscapeHtml(para)}</p>`).join("")
+    : `<p id="pwin-description-empty">Aucune description pour ce modèle.</p>`;
+}
+
+// -- Type (tanga, string, culotte, etc. — selon ce qui est dispo pour ce modèle) --
+function renderTypeOptions() {
+  const container = document.getElementById("pwin-type-options");
+  const types = currentProduct.types || [];
+
+  if (types.length === 0) {
+    container.innerHTML = `<p style="text-align:center;color:#666;font-style:italic;">Pas de choix de type pour ce modèle.</p>`;
+    document.getElementById("pwin-type-label").style.display = "none";
+    return;
+  }
+
+  document.getElementById("pwin-type-label").style.display = "";
+  container.innerHTML = types
+    .map(t => `<button type="button" class="size-btn" data-type="${stringzEscapeHtml(t)}">${stringzEscapeHtml(t)}</button>`)
+    .join("");
+  // Délégation d'événements (plutôt qu'un onclick inline) : un nom de type
+  // saisi librement par l'admin peut contenir des guillemets/apostrophes.
+  container.querySelectorAll(".size-btn").forEach(btn => {
+    btn.addEventListener("click", () => selectType(btn.dataset.type));
+  });
+
+  // Un seul type dispo : on le présélectionne directement, pas besoin de cliquer.
+  if (types.length === 1) {
+    selectType(types[0]);
+  }
+}
+function selectType(type) {
+  selectedType = type;
+  document.querySelectorAll("#pwin-type-options .size-btn").forEach(btn => {
+    btn.classList.toggle("selected", btn.dataset.type === type);
+  });
 }
 
 // -- Taille --
@@ -1763,6 +1926,10 @@ function changeDetailQty(delta) {
 }
 function confirmAddToCart() {
   if (!currentProduct) return;
+  if ((currentProduct.types || []).length > 0 && !selectedType) {
+    showToast("Choisis un type avant d'ajouter au panier.");
+    return;
+  }
   if (!selectedSize) {
     showToast("Choisis une taille avant d'ajouter au panier.");
     return;
@@ -1774,7 +1941,8 @@ function confirmAddToCart() {
   }
   cart[currentProduct.id] = currentQty + detailQty;
   updateCartUI();
-  showToast(`${currentProduct.name} (taille ${selectedSize}) ajouté au panier`);
+  const typeLabel = selectedType ? ` (${selectedType})` : "";
+  showToast(`${currentProduct.name}${typeLabel} (taille ${selectedSize}) ajouté au panier`);
   closeProductWindows();
 }
 
