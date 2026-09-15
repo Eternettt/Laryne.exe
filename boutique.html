@@ -1004,9 +1004,18 @@ async function loadProductsFromServer() {
     fetched = [];
   }
   products = (fetched && fetched.length) ? fetched : JSON.parse(JSON.stringify(DEMO_PRODUCTS));
-  // Génère 3 photos et une liste de tailles pour chaque produit (démo)
   products.forEach(p => {
-    p.images = [1, 2, 3].map(n => `https://placehold.co/500x400?text=${encodeURIComponent(p.name + ' - Vue ' + n)}`);
+    // Images : on garde TOUJOURS celles enregistrées en base (ajoutées depuis
+    // admin.html). Les photos de démo ne servent que si le produit n'en a
+    // aucune, sinon on écraserait les vraies images à chaque chargement.
+    if (Array.isArray(p.images) && p.images.length) {
+      // rien à faire : ce sont les images du serveur
+    } else if (p.img) {
+      p.images = [p.img];
+    } else {
+      p.images = [1, 2, 3].map(n => `https://placehold.co/500x400?text=${encodeURIComponent(p.name + ' - Vue ' + n)}`);
+    }
+    p.img = p.images[0];
     p.sizes = ["XS", "S", "M", "L", "XL"];
     // Types dispo (tanga, string, culotte...) : rétrocompatibilité avec les
     // anciens produits qui n'avaient qu'une "catégorie" unique.
@@ -1438,16 +1447,38 @@ function replaceCurrentImage(event) {
     return;
   }
   const reader = new FileReader();
-  reader.onload = (e) => {
-    currentProduct.images[galleryIndex] = e.target.result;
-    currentProduct.img = currentProduct.images[0];
+  reader.onload = async (e) => {
+    const images = currentProduct.images.slice();
+    images[galleryIndex] = e.target.result;
+    if (!(await saveProductImages(currentProduct, images))) return;
     renderGallery();
     refreshCardThumbnail(currentProduct);
     showToast("Image remplacée.");
   };
   reader.readAsDataURL(file);
 }
-function deleteCurrentImage() {
+
+// ---- Enregistre la liste d'images d'un produit en base ----
+// Sans ça, les images ajoutées ici ne vivaient qu'en mémoire et
+// disparaissaient au rechargement de la page.
+async function saveProductImages(product, images) {
+  if (product.id < 0) {
+    // Produit d'exemple (pas en base) : modification locale uniquement.
+    product.images = images;
+    product.img = images[0];
+    showToast("Produit d'exemple : modification non enregistrée.");
+    return true;
+  }
+  const result = await stringzAdminUpdateProduct(product.id, { images });
+  if (!result.ok) {
+    showToast((result.data && result.data.error) || "Enregistrement impossible.");
+    return false;
+  }
+  product.images = images;
+  product.img = images[0];
+  return true;
+}
+async function deleteCurrentImage() {
   if (!currentProduct) return;
   if (!isAdmin) {
     showToast("Réservé aux administrateurs.");
@@ -1457,9 +1488,10 @@ function deleteCurrentImage() {
     showToast("Il doit rester au moins une image.");
     return;
   }
-  currentProduct.images.splice(galleryIndex, 1);
+  const images = currentProduct.images.slice();
+  images.splice(galleryIndex, 1);
+  if (!(await saveProductImages(currentProduct, images))) return;
   if (galleryIndex >= currentProduct.images.length) galleryIndex = currentProduct.images.length - 1;
-  currentProduct.img = currentProduct.images[0];
   renderGallery();
   refreshCardThumbnail(currentProduct);
   showToast("Image supprimée.");
@@ -1477,10 +1509,12 @@ function addCustomImage(event) {
     return;
   }
   const reader = new FileReader();
-  reader.onload = (e) => {
-    currentProduct.images.push(e.target.result);
+  reader.onload = async (e) => {
+    const images = currentProduct.images.concat([e.target.result]);
+    if (!(await saveProductImages(currentProduct, images))) return;
     galleryIndex = currentProduct.images.length - 1;
     renderGallery();
+    refreshCardThumbnail(currentProduct);
     showToast("Image ajoutée.");
   };
   reader.readAsDataURL(file);
