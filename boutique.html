@@ -16,10 +16,16 @@
 
   @media (max-width: 600px) {
     body { background-image: url('fond-telephone.jpg'); }
-    /* Sur les petits écrans, l'image du post-it est vue en entier plutôt que
-       recadrée : object-fit: contain garde tout le visuel, quitte à laisser
-       un peu de blanc sur les côtés selon les proportions de la photo. */
-    .postit-content img { object-fit: contain; }
+    /* Sur les petits écrans, l'image du sticker est vue en entier plutôt que
+       recadrée (object-fit: contain), et le contour est plus fin puisque le
+       sticker lui-même est petit. */
+    .postit-content img { object-fit: contain; border-width: 0.15em; border-radius: 10px; }
+    /* 4 stickers par ligne sur téléphone, plus petits et resserrés. */
+    #product-grid {
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px 8px;
+      padding: 16px 8px 30px 8px;
+    }
   }
 
   header {
@@ -101,51 +107,34 @@
     padding: 30px 10px 44px 10px;
   }
 
-  /* --- Articles façon post-it (coin corné, comme un vrai bloc-notes) --- */
+  /* --- Produits : plus de papier post-it derrière, juste la photo façon
+     sticker (contour blanc, ombre, légère rotation aléatoire) --- */
   .product-card {
     position: relative;
-    background: #f9c2b0;
+    background: transparent;
     border: none;
-    padding: 1.125em 1em 1.875em 1em;
+    padding: 0;
     display: flex;
     flex-direction: column;
-    /* Avant, la hauteur de la carte venait du texte (titre, prix, stock...).
-       Ce texte a disparu : sans lui la carte n'a plus rien pour définir sa
-       hauteur, donc on lui donne un ratio fixe pour que la photo ait
-       toujours une belle place, quelle que soit la largeur de la grille. */
     aspect-ratio: 3 / 4;
     font-family: 'Caveat', cursive;
     font-size: 16px;
-    transition: transform 0.2s ease, box-shadow 0.2s ease, width 0.2s ease, height 0.2s ease;
-    box-shadow: 4px 8px 16px rgba(0,0,0,0.28);
+    transition: transform 0.2s ease, filter 0.2s ease, width 0.2s ease, height 0.2s ease;
   }
 
-  /* bande légèrement plus foncée en haut, comme la partie collée du bloc-notes */
-  .product-card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 15%;
-    background: rgba(0,0,0,0.12);
-    pointer-events: none;
-  }
-
-  .product-card:nth-child(6n+1) { background: #f9c2b0; transform: rotate(-1.5deg); }
-  .product-card:nth-child(6n+2) { background: #ffd6c2; transform: rotate(1deg); }
-  .product-card:nth-child(6n+3) { background: #ffe0a3; transform: rotate(-1deg); }
-  .product-card:nth-child(6n+4) { background: #c9f2d1; transform: rotate(1.5deg); }
-  .product-card:nth-child(6n+5) { background: #bfe1ff; transform: rotate(-1.2deg); }
-  .product-card:nth-child(6n+6) { background: #ffc9d9; transform: rotate(1.2deg); }
+  .product-card:nth-child(6n+1) { transform: rotate(-4deg); }
+  .product-card:nth-child(6n+2) { transform: rotate(3deg); }
+  .product-card:nth-child(6n+3) { transform: rotate(-3deg); }
+  .product-card:nth-child(6n+4) { transform: rotate(4deg); }
+  .product-card:nth-child(6n+5) { transform: rotate(-2.5deg); }
+  .product-card:nth-child(6n+6) { transform: rotate(2.5deg); }
 
   .product-card:hover {
-    transform: rotate(0deg) scale(1.05) !important;
-    box-shadow: 6px 14px 22px rgba(0,0,0,0.35);
+    transform: rotate(0deg) scale(1.08) !important;
     z-index: 5;
   }
 
-  /* --- Post-it retiré : glisse et disparaît quand il ne correspond plus au filtre --- */
+  /* --- Sticker retiré : glisse et disparaît quand il ne correspond plus au filtre --- */
   .product-card.falling {
     transition: transform 0.7s cubic-bezier(.55,0,1,.45), opacity 0.5s ease 0.25s;
     transform: translate(var(--fall-x, 0px), 640px) rotate(var(--fall-rot, 45deg)) !important;
@@ -157,8 +146,13 @@
     height: 100%;
     object-fit: cover;
     background: #fff;
+    border-radius: 16px;
     border: 0.25em solid #fff;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.35);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.35);
+    transition: box-shadow 0.2s ease;
+  }
+  .product-card:hover .postit-content img {
+    box-shadow: 0 8px 18px rgba(0,0,0,0.4);
   }
 
   /* Panel panier */
