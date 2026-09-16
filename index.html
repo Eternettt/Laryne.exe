@@ -665,7 +665,7 @@
   // le monde sauf les admins, sans qu'on ait à revérifier le rôle ici.
   function getPopups() {
     if (MENU_BOUTIQUE_ONLY) {
-      return [document.getElementById('popup2'), document.getElementById('popup6')].filter(Boolean);
+      return [document.getElementById('popup1'), document.getElementById('popup2'), document.getElementById('popup6')].filter(Boolean);
     }
     return document.querySelectorAll('.vista-window');
   }
