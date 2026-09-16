@@ -109,6 +109,11 @@
     padding: 1.125em 1em 1.875em 1em;
     display: flex;
     flex-direction: column;
+    /* Avant, la hauteur de la carte venait du texte (titre, prix, stock...).
+       Ce texte a disparu : sans lui la carte n'a plus rien pour définir sa
+       hauteur, donc on lui donne un ratio fixe pour que la photo ait
+       toujours une belle place, quelle que soit la largeur de la grille. */
+    aspect-ratio: 3 / 4;
     font-family: 'Caveat', cursive;
     font-size: 16px;
     transition: transform 0.2s ease, box-shadow 0.2s ease, width 0.2s ease, height 0.2s ease;
@@ -149,39 +154,11 @@
 
   .postit-content img {
     width: 100%;
-    height: 7.5em;
+    height: 100%;
     object-fit: cover;
     background: #fff;
     border: 0.25em solid #fff;
     box-shadow: 0 2px 5px rgba(0,0,0,0.35);
-    margin-bottom: 0.625em;
-  }
-  .product-card h3 { font-size: 1.375em; font-weight: 700; margin-bottom: 2px; color: #2b2b2b; }
-  .product-card .cat { font-size: 0.875em; color: #5a4632; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
-  .product-card .price { font-size: 1.25em; font-weight: 700; margin-bottom: 6px; color: #1a1a1a; }
-  .product-card .stock { font-size: 0.875em; margin-bottom: 10px; font-weight: 600; }
-  .stock.ok { color: #0a7d2c; }
-  .stock.low { color: #d97706; }
-  .stock.out { color: #c0392b; }
-
-  .product-card button {
-    margin-top: auto;
-    padding: 0.5em;
-    background: linear-gradient(#c2477a, #7a2350);
-    color: #fff;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 0.8125em;
-    font-family: Arial, Helvetica, sans-serif;
-    font-weight: bold;
-  }
-  .product-card button:hover:not(:disabled) {
-    background: linear-gradient(#d1588c, #8a2a5c);
-  }
-  .product-card button:disabled {
-    background: #aaa;
-    cursor: not-allowed;
   }
 
   /* Panel panier */
@@ -1094,27 +1071,16 @@ const POSTIT_BASE = 200;
 const POSTIT_MIN = 90;
 const POSTIT_MAX = 260;
 
-function productContentHTML(p, stockClass, stockLabel) {
+function productContentHTML(p) {
+  // Le post-it ne montre plus que la photo du produit : nom, catégorie, prix,
+  // stock et bouton disparaissent de la grille (ils restent visibles dans la
+  // fenêtre qui s'ouvre au clic, via openProductWindows).
   return `
-    ${(typeof p.icon === 'string' && p.icon.startsWith('data:image')) ? `<div class="product-icon-badge"><img src="${stringzEscapeHtml(p.icon)}" alt=""></div>` : (p.icon ? `<div class="product-icon-badge">${stringzEscapeHtml(p.icon)}</div>` : "")}
     <img src="${stringzEscapeHtml((p.images && p.images[0]) || p.img)}" alt="${stringzEscapeHtml(p.name)}">
-    <h3>${stringzEscapeHtml(p.name)}</h3>
-    <div class="cat">${stringzEscapeHtml((p.types && p.types.length) ? p.types.join(' / ') : p.category)}</div>
-    <div class="price">${p.price.toFixed(2).replace('.', ',')} €</div>
-    <div class="stock ${stockClass}">${stockLabel}</div>
-    <button ${p.stock === 0 ? "disabled" : ""} onclick="event.stopPropagation(); openProductWindows(${p.id})">
-      ${p.stock === 0 ? "Indisponible" : "Ajouter au panier"}
-    </button>
   `;
 }
 
 function updateCardContent(card, p) {
-  // Le client ne voit jamais le nombre d'articles restants : seulement
-  // "En stock" (vert, ou orange quand il en reste peu) ou "Rupture de stock"
-  // (rouge). Le stock chiffré reste visible dans le panneau Gestion.
-  const stockClass = p.stock === 0 ? "out" : p.stock <= 5 ? "low" : "ok";
-  const stockLabel = p.stock === 0 ? "Rupture de stock" : "En stock";
-
   if (p.postit) {
     const overall = (p.postitSize || 100) / 100;
     const scaleX = overall * ((p.postitScaleX || 100) / 100);
@@ -1140,7 +1106,7 @@ function updateCardContent(card, p) {
     card.innerHTML = `
       <div class="postit-bg-layer"><img src="${stringzEscapeHtml(p.postit)}" alt="" role="presentation"></div>
       <div class="postit-content" id="pc-${p.id}" style="position:absolute; top:0; left:0; width:${POSTIT_BASE}px; padding:18px 16px 30px 16px; box-sizing:border-box; transform-origin: top left;">
-        ${productContentHTML(p, stockClass, stockLabel)}
+        ${productContentHTML(p)}
       </div>
     `;
 
@@ -1162,7 +1128,7 @@ function updateCardContent(card, p) {
 
     card.innerHTML = `
       <div class="postit-content">
-        ${productContentHTML(p, stockClass, stockLabel)}
+        ${productContentHTML(p)}
       </div>
     `;
   }
