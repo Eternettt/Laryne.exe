@@ -153,11 +153,11 @@
        recadrée (object-fit: contain), et le contour est plus fin puisque le
        sticker lui-même est petit. */
     .postit-content img { object-fit: contain; border-width: 0.15em; border-radius: 10px; }
-    /* 4 stickers par ligne sur téléphone, plus petits et resserrés. */
+    /* 2 stickers par ligne sur téléphone. */
     #product-grid {
-      grid-template-columns: repeat(4, 1fr);
-      gap: 14px 8px;
-      padding: 16px 8px 30px 8px;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 18px 12px;
+      padding: 16px 10px 30px 10px;
     }
   }
 
@@ -1071,17 +1071,17 @@ const POSTIT_BASE = 200;
 const POSTIT_MIN = 90;
 const POSTIT_MAX = 260;
 
-// Sur téléphone, la grille impose 4 colonnes égales (voir CSS) : si on gardait
+// Sur téléphone, la grille impose 2 colonnes égales (voir CSS) : si on gardait
 // la taille fixe ci-dessus, un sticker personnalisé plus grand que sa colonne
-// débordait sur les voisins, et on se retrouvait avec un seul énorme sticker
-// au lieu de 4. On calcule donc la taille de référence sur la largeur réelle
+// débordait sur le voisin, et on se retrouvait avec un seul énorme sticker
+// au lieu de 2. On calcule donc la taille de référence sur la largeur réelle
 // de la colonne quand l'écran est étroit, pour que le sticker ne dépasse
 // jamais la place qui lui est réservée.
 function getPostitLimits() {
   if (window.matchMedia("(max-width: 600px)").matches) {
     const grid = document.getElementById("product-grid");
-    const gapPx = 8; // doit correspondre au gap horizontal de #product-grid en media query mobile
-    const columnWidth = grid ? (grid.clientWidth - gapPx * 3) / 4 : POSTIT_MIN;
+    const gapPx = 12; // doit correspondre au gap horizontal de #product-grid en media query mobile
+    const columnWidth = grid ? (grid.clientWidth - gapPx) / 2 : POSTIT_MIN;
     const base = Math.max(POSTIT_MIN, columnWidth);
     return { base, min: base * 0.6, max: base };
   }
