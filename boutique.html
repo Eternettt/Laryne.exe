@@ -16,6 +16,10 @@
 
   @media (max-width: 600px) {
     body { background-image: url('fond-telephone.jpg'); }
+    /* Sur les petits écrans, l'image du post-it est vue en entier plutôt que
+       recadrée : object-fit: contain garde tout le visuel, quitte à laisser
+       un peu de blanc sur les côtés selon les proportions de la photo. */
+    .postit-content img { object-fit: contain; }
   }
 
   header {
