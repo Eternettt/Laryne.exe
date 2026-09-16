@@ -1065,6 +1065,23 @@ const POSTIT_BASE = 200;
 const POSTIT_MIN = 90;
 const POSTIT_MAX = 260;
 
+// Sur téléphone, la grille impose 4 colonnes égales (voir CSS) : si on gardait
+// la taille fixe ci-dessus, un sticker personnalisé plus grand que sa colonne
+// débordait sur les voisins, et on se retrouvait avec un seul énorme sticker
+// au lieu de 4. On calcule donc la taille de référence sur la largeur réelle
+// de la colonne quand l'écran est étroit, pour que le sticker ne dépasse
+// jamais la place qui lui est réservée.
+function getPostitLimits() {
+  if (window.matchMedia("(max-width: 600px)").matches) {
+    const grid = document.getElementById("product-grid");
+    const gapPx = 8; // doit correspondre au gap horizontal de #product-grid en media query mobile
+    const columnWidth = grid ? (grid.clientWidth - gapPx * 3) / 4 : POSTIT_MIN;
+    const base = Math.max(POSTIT_MIN, columnWidth);
+    return { base, min: base * 0.6, max: base };
+  }
+  return { base: POSTIT_BASE, min: POSTIT_MIN, max: POSTIT_MAX };
+}
+
 function productContentHTML(p) {
   // Le post-it ne montre plus que la photo du produit : nom, catégorie, prix,
   // stock et bouton disparaissent de la grille (ils restent visibles dans la
@@ -1076,16 +1093,17 @@ function productContentHTML(p) {
 
 function updateCardContent(card, p) {
   if (p.postit) {
+    const { base: postitBase, min: postitMin, max: postitMax } = getPostitLimits();
     const overall = (p.postitSize || 100) / 100;
     const scaleX = overall * ((p.postitScaleX || 100) / 100);
     const scaleY = overall * ((p.postitScaleY || 100) / 100);
     const rotation = p.postitRotation || 0;
 
-    // La carte elle-même adopte la taille du sprite (bornée par POSTIT_MIN/MAX) :
+    // La carte elle-même adopte la taille du sprite (bornée par min/max) :
     // pas de zone vide/transparente autour, et jamais assez grande pour empiéter
     // sur les post-its voisins.
-    const width = Math.min(POSTIT_MAX, Math.max(POSTIT_MIN, POSTIT_BASE * scaleX));
-    const height = Math.min(POSTIT_MAX, Math.max(POSTIT_MIN, POSTIT_BASE * scaleY));
+    const width = Math.min(postitMax, Math.max(postitMin, postitBase * scaleX));
+    const height = Math.min(postitMax, Math.max(postitMin, postitBase * scaleY));
 
     card.style.width = width + "px";
     card.style.height = height + "px";
@@ -1099,7 +1117,7 @@ function updateCardContent(card, p) {
 
     card.innerHTML = `
       <div class="postit-bg-layer"><img src="${stringzEscapeHtml(p.postit)}" alt="" role="presentation"></div>
-      <div class="postit-content" id="pc-${p.id}" style="position:absolute; top:0; left:0; width:${POSTIT_BASE}px; padding:18px 16px 30px 16px; box-sizing:border-box; transform-origin: top left;">
+      <div class="postit-content" id="pc-${p.id}" style="position:absolute; top:0; left:0; width:${postitBase}px; padding:18px 16px 30px 16px; box-sizing:border-box; transform-origin: top left;">
         ${productContentHTML(p)}
       </div>
     `;
@@ -1108,8 +1126,8 @@ function updateCardContent(card, p) {
     // ou le compresse pour qu'il remplisse EXACTEMENT la carte : rien n'est
     // jamais coupé, tout reste toujours entièrement visible.
     const contentEl = card.querySelector(".postit-content");
-    const naturalHeight = contentEl.offsetHeight || POSTIT_BASE;
-    const sx = width / POSTIT_BASE;
+    const naturalHeight = contentEl.offsetHeight || postitBase;
+    const sx = width / postitBase;
     const sy = height / naturalHeight;
     contentEl.style.transform = `scale(${sx}, ${sy})`;
   } else {
@@ -2022,6 +2040,17 @@ function saveRemark() {
   updateAdminUI();
   await initAdminAccess(); // revérifie l'accès admin auprès du serveur
 })();
+
+// ---- Recalcule la taille des stickers personnalisés si l'écran change ----
+// (rotation du téléphone, redimensionnement de la fenêtre) : sans ça, une
+// taille calculée une seule fois au chargement resterait fausse après un
+// changement d'orientation.
+let resizeRerenderTimeout = null;
+window.addEventListener("resize", () => {
+  clearTimeout(resizeRerenderTimeout);
+  resizeRerenderTimeout = setTimeout(() => renderProducts(), 200);
+});
+
 </script>
 
 <footer id="stringz-legal-footer">
