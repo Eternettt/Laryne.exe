@@ -115,6 +115,10 @@ async function stringzAdminListOrders() {
   const { ok, data } = await stringzApiFetch('/api/admin/orders');
   return ok ? (data.orders || []) : null;
 }
+// ---- Marque une commande comme expédiée (elle sort alors de la liste ci-dessus) ----
+async function stringzAdminMarkOrderShipped(id) {
+  return stringzApiFetch('/api/admin/orders', { method: 'PUT', body: { id } });
+}
 
 
 /* ==========================================================================
