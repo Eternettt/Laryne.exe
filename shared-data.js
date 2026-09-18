@@ -116,8 +116,12 @@ async function stringzAdminListOrders() {
   return ok ? (data.orders || []) : null;
 }
 // ---- Marque une commande comme expédiée (elle sort alors de la liste ci-dessus) ----
+// Appelle directement /api/orders (le vrai fichier de la fonction) plutôt que
+// /api/admin/orders : si la réécriture vercel.json pour cette URL n'a été
+// écrite que pour GET (ou si un vieux fichier api/admin/orders.js GET-only
+// traîne encore), passer par le chemin réel évite l'erreur 405.
 async function stringzAdminMarkOrderShipped(id) {
-  return stringzApiFetch('/api/admin/orders', { method: 'PUT', body: { id } });
+  return stringzApiFetch('/api/orders?mode=admin', { method: 'PUT', body: { id } });
 }
 
 

@@ -349,6 +349,29 @@
   .btn-ship.confirming { background: #a8241a; color: #fff; }
   .btn-ship.confirming:hover { background: #8c1d15; }
 
+  .order-card { cursor: pointer; }
+  .order-card:hover { box-shadow: 0 8px 18px rgba(0,0,0,0.2); }
+
+  /* ---- Détail d'une commande (modale) ---- */
+  .od-row { font-size: 14px; margin-bottom: 6px; color: #3a2430; }
+  .od-label { display: inline-block; min-width: 90px; font-weight: bold; color: #7a2350; }
+  .od-section-title { font-size: 13px; font-weight: bold; color: #7a2350; text-transform: uppercase; letter-spacing: 0.5px; margin: 16px 0 6px; }
+  .od-address {
+    font-size: 14px;
+    color: #4a2f3c;
+    background: #fdf3f7;
+    border: 1px solid #f0c8dc;
+    border-radius: 8px;
+    padding: 10px 12px;
+    line-height: 1.5;
+  }
+  .od-address.missing { color: #a8241a; font-style: italic; }
+  .od-items-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 4px; }
+  .od-items-table th { text-align: left; color: #9a5c78; font-size: 11px; text-transform: uppercase; padding: 4px 6px; border-bottom: 2px solid #f0c8dc; }
+  .od-items-table td { padding: 6px; border-bottom: 1px solid #f5e0ea; }
+  .od-total { text-align: right; font-weight: bold; font-size: 15px; margin-top: 10px; color: #1a1a1a; }
+  .od-session { margin-top: 14px; font-size: 11px; color: #b0879c; word-break: break-all; }
+
   #add-workshop-btn {
     display: block;
     width: 100%;
@@ -697,6 +720,13 @@
         <button type="submit" class="submit-btn-modal">💾 Enregistrer l'atelier</button>
       </form>
     </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="order-detail-modal">
+  <div class="modal-box wide">
+    <div class="modal-titlebar"><span>Détails de la commande</span><span class="x" onclick="closeOrderDetailModal()">✕</span></div>
+    <div class="modal-body" id="order-detail-body"></div>
   </div>
 </div>
 
@@ -1123,9 +1153,14 @@
     return { name: o.shippingName || '', lines };
   }
 
+  // Commandes actuellement affichées, gardées en mémoire pour que le clic sur
+  // une ligne puisse retrouver tous les détails sans refaire un appel réseau.
+  let ordersCache = [];
+
   async function loadOrders() {
     const orders = await stringzAdminListOrders();
-    renderOrders(orders || []);
+    ordersCache = orders || [];
+    renderOrders(ordersCache);
   }
 
   function renderOrders(orders) {
@@ -1151,8 +1186,9 @@
           .join(', ');
 
         const card = document.createElement('div');
-        card.className = 'model-card';
+        card.className = 'model-card order-card';
         card.dataset.id = o.id;
+        card.onclick = () => openOrderDetail(o.id);
         card.innerHTML = `
           <div class="order-summary">
             <div class="ord-top-row">
@@ -1169,11 +1205,54 @@
           </div>
 
           <div class="model-actions">
-            <button class="btn-ship" onclick="handleShipClick(${o.id}, this)">📦 Marquer comme envoyée</button>
+            <button class="btn-ship" onclick="event.stopPropagation(); handleShipClick(${o.id}, this)">📦 Marquer comme envoyée</button>
           </div>
         `;
         list.appendChild(card);
       });
+  }
+
+  // ---- Fenêtre de détail : tout ce qu'on sait sur une commande ----
+  function openOrderDetail(id) {
+    const o = ordersCache.find(x => x.id === id);
+    if (!o) return;
+    const addr = formatAddress(o);
+
+    const itemsRows = (o.items || []).map(it => `
+      <tr>
+        <td>${stringzEscapeHtml(it.name)}${it.customOrder ? ' <em>(création personnalisée)</em>' : ''}</td>
+        <td>${it.qty}</td>
+        <td>${Number(it.unitPrice || 0).toFixed(2).replace('.', ',')} €</td>
+        <td>${(Number(it.unitPrice || 0) * (it.qty || 1)).toFixed(2).replace('.', ',')} €</td>
+      </tr>
+    `).join('');
+
+    document.getElementById('order-detail-body').innerHTML = `
+      <div class="od-row"><span class="od-label">Commande</span> #${o.id}</div>
+      <div class="od-row"><span class="od-label">Statut</span> ${stringzEscapeHtml(o.status)}</div>
+      <div class="od-row"><span class="od-label">Passée</span> ${new Date(o.createdAt).toLocaleString('fr-FR')} (${formatElapsed(o.createdAt)})</div>
+      ${o.customerEmail ? `<div class="od-row"><span class="od-label">E-mail</span> ${stringzEscapeHtml(o.customerEmail)}</div>` : ""}
+
+      <div class="od-section-title">Adresse de livraison</div>
+      ${addr
+        ? `<div class="od-address">${addr.name ? stringzEscapeHtml(addr.name) + "<br>" : ""}${addr.lines.map(l => stringzEscapeHtml(l)).join('<br>')}</div>`
+        : `<div class="od-address missing">Pas d'adresse enregistrée pour cette commande (achat sans livraison, ou passé avant la mise en place de la collecte d'adresse).</div>`
+      }
+
+      <div class="od-section-title">Articles</div>
+      <table class="od-items-table">
+        <thead><tr><th>Article</th><th>Qté</th><th>Prix unitaire</th><th>Sous-total</th></tr></thead>
+        <tbody>${itemsRows}</tbody>
+      </table>
+      <div class="od-total">Total payé : ${o.total.toFixed(2).replace('.', ',')} €</div>
+
+      ${o.sessionId ? `<div class="od-session">Référence Stripe : ${stringzEscapeHtml(o.sessionId)}</div>` : ""}
+    `;
+
+    document.getElementById('order-detail-modal').classList.add('open');
+  }
+  function closeOrderDetailModal() {
+    document.getElementById('order-detail-modal').classList.remove('open');
   }
 
   function handleShipClick(id, btn) {
@@ -1213,6 +1292,7 @@
     }
     const card = document.querySelector(`.model-card[data-id="${id}"]`);
     if (card) card.remove();
+    ordersCache = ordersCache.filter(o => o.id !== id);
     showToast('Commande marquée comme envoyée ✓');
     if (!document.querySelector('#orders-list .model-card')) {
       document.getElementById('orders-empty-note').classList.add('show');
