@@ -229,6 +229,25 @@
     border-top: 1px solid #ea8fb8;
     background: #fdeaf2;
   }
+  #ship-choice {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 12px;
+    font-size: 14px;
+    color: #7a2350;
+  }
+  #ship-choice select {
+    flex: 1;
+    max-width: 62%;
+    padding: 6px 8px;
+    border: 1px solid #ea8fb8;
+    border-radius: 6px;
+    background: #fff;
+    color: #7a2350;
+    font-size: 13px;
+  }
   #cart-total {
     display: flex;
     justify-content: space-between;
@@ -701,6 +720,13 @@
   </div>
   <div id="cart-items"></div>
   <div id="cart-footer">
+    <div id="ship-choice">
+      <label for="ship-destination">Livraison en</label>
+      <select id="ship-destination">
+        <option value="FR">France</option>
+        <option value="INTL">Étranger (Europe, USA, Canada)</option>
+      </select>
+    </div>
     <div id="cart-total">
       <span>Total</span>
       <span id="total-amount">0,00 €</span>
@@ -1328,7 +1354,7 @@ async function checkout() {
     const response = await fetch("/api/create-checkout-session", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ cart: Object.values(cart) }),
+      body: JSON.stringify({ cart: Object.values(cart), destination: document.getElementById("ship-destination").value }),
     });
 
     const data = await response.json().catch(() => ({}));

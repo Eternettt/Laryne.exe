@@ -6,6 +6,10 @@
    - GET/POST/PUT/DELETE /api/admin/products
        → réécrit vers /api/products?admin=1 (voir vercel.json), rôle admin
          revérifié EN BASE à chaque appel avant toute opération.
+
+   Types disponibles (tanga, string, culotte...) : aucune colonne dédiée en
+   base. Ils sont stockés dans "category" sous la forme "Tanga / String" et
+   renvoyés au front sous forme de tableau "types" (voir typesFromCategory).
    ========================================================================== */
 
 const { sql } = require('../lib/db');
@@ -26,11 +30,31 @@ async function requireAdmin(req, res) {
   return user;
 }
 
+// "Tanga / String" -> ["Tanga", "String"]
+function typesFromCategory(category) {
+  return [...new Set(
+    String(category || '')
+      .split(/[\/,]/)
+      .map((t) => t.trim())
+      .filter(Boolean)
+  )];
+}
+
+// ["Tanga", "String"] -> "Tanga / String"
+function categoryFromTypes(types) {
+  return [...new Set(
+    (Array.isArray(types) ? types : [])
+      .map((t) => String(t == null ? '' : t).replace(/[\/,]/g, ' ').trim())
+      .filter(Boolean)
+  )].join(' / ');
+}
+
 function toClientProduct(r) {
   return {
     id: r.id,
     name: r.name,
     category: r.category,
+    types: typesFromCategory(r.category),
     description: r.description || '',
     price: r.price_cents / 100,
     stock: r.stock,
@@ -70,15 +94,16 @@ module.exports = async (req, res) => {
     }
 
     if (req.method === 'POST') {
-      const { name, category, description, price, stock, icon, images } = req.body || {};
+      const { name, category, types, description, price, stock, icon, images } = req.body || {};
       if (!name) {
         res.status(400).json({ error: 'Nom requis.' });
         return;
       }
       const priceCents = Math.round((Number(price) || 0) * 100);
+      const finalCategory = Array.isArray(types) ? categoryFromTypes(types) : (category || '');
       const { rows } = await sql`
         insert into products (name, category, description, price_cents, stock, icon, images)
-        values (${name}, ${category || ''}, ${description || ''}, ${priceCents}, ${Number(stock) || 0}, ${icon || ''}, ${JSON.stringify(images || [])})
+        values (${name}, ${finalCategory}, ${description || ''}, ${priceCents}, ${Number(stock) || 0}, ${icon || ''}, ${JSON.stringify(images || [])})
         returning id, name, category, description, price_cents, stock, icon, images
       `;
       res.status(200).json({ product: toClientProduct(rows[0]) });
@@ -86,7 +111,7 @@ module.exports = async (req, res) => {
     }
 
     if (req.method === 'PUT') {
-      const { id, name, category, description, price, stock, icon, images } = req.body || {};
+      const { id, name, category, types, description, price, stock, icon, images } = req.body || {};
       if (!id) {
         res.status(400).json({ error: 'id requis.' });
         return;
@@ -99,7 +124,14 @@ module.exports = async (req, res) => {
       }
 
       if (name !== undefined) await sql`update products set name = ${name}, updated_at = now() where id = ${id}`;
-      if (category !== undefined) await sql`update products set category = ${category}, updated_at = now() where id = ${id}`;
+      // "types" (tableau) prime sur "category" : c'est ce qu'envoie admin.html
+      // quand on coche/décoche un type.
+      if (Array.isArray(types)) {
+        const cat = categoryFromTypes(types);
+        await sql`update products set category = ${cat}, updated_at = now() where id = ${id}`;
+      } else if (category !== undefined) {
+        await sql`update products set category = ${category}, updated_at = now() where id = ${id}`;
+      }
       if (description !== undefined) await sql`update products set description = ${description}, updated_at = now() where id = ${id}`;
       if (price !== undefined) await sql`update products set price_cents = ${Math.round(Number(price) * 100)}, updated_at = now() where id = ${id}`;
       if (stock !== undefined) await sql`update products set stock = ${Number(stock)}, updated_at = now() where id = ${id}`;
