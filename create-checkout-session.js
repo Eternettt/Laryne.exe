@@ -24,6 +24,15 @@ module.exports = async (req, res) => {
   const session = getSession(req); // peut être null (achat sans compte)
   const body = req.body || {};
 
+  // Compatibilité : si un ancien boutique.html envoie encore le panier au
+  // format {id: quantité} (avant la gestion des tailles/types), on le
+  // convertit ici en liste de lignes — sans ça, Object.keys() sur un
+  // panier déjà au nouveau format (un tableau) renverrait des indices
+  // (0, 1, 2...) pris à tort pour des identifiants produit.
+  if (body.cart && !Array.isArray(body.cart) && typeof body.cart === 'object') {
+    body.cart = Object.entries(body.cart).map(([id, qty]) => ({ productId: Number(id), qty }));
+  }
+
   try {
     let lineItems = [];
     let orderItems = [];
