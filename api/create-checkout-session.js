@@ -2,7 +2,18 @@ const Stripe = require('stripe');
 const { sql } = require('../lib/db');
 const { getSession } = require('../lib/session');
 const { computeCustomOrderPrice } = require('../lib/custom-order-pricing');
-const { getShippingRates } = require('../lib/shipping-pricing');
+// ---- Frais de port selon le nombre de pièces (intégré ici : pas de fichier en plus) ----
+// Paliers : 1-2 / 3-5 / 6-10 pièces. Au-delà de 10, on applique le dernier palier.
+const SHIPPING_TIERS = [
+  { max: 2, franceCents: 350, abroadCents: 750 },
+  { max: 5, franceCents: 570, abroadCents: 1410 },
+  { max: 10, franceCents: 772, abroadCents: 1900 },
+];
+function getShippingRates(quantity) {
+  const qty = Math.max(1, Math.round(Number(quantity) || 1));
+  const tier = SHIPPING_TIERS.find((t) => qty <= t.max) || SHIPPING_TIERS[SHIPPING_TIERS.length - 1];
+  return { franceCents: tier.franceCents, abroadCents: tier.abroadCents };
+}
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
