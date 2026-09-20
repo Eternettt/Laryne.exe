@@ -65,7 +65,7 @@ async function handleAdmin(req, res) {
   // commande sort de cette liste. Les plus anciennes en premier, pour
   // traiter la file dans l'ordre d'arrivée.
   const { rows } = await sql`
-    select o.id, o.stripe_session_id, o.status, o.items, o.total_cents, o.customer_email, o.created_at,
+    select o.id, o.stripe_session_id, o.status, o.items, o.total_cents, o.shipping_cents, o.customer_email, o.created_at,
            o.shipping_name, o.shipping_address,
            u.email as account_email
     from orders o
@@ -80,6 +80,7 @@ async function handleAdmin(req, res) {
     status: r.status,
     items: r.items,
     total: r.total_cents / 100,
+    shippingCost: r.shipping_cents != null ? r.shipping_cents / 100 : null,
     customerEmail: r.customer_email || r.account_email || null,
     createdAt: r.created_at,
     shippingName: r.shipping_name || null,

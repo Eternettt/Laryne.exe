@@ -47,12 +47,20 @@ async function handler(req, res) {
         const shippingName = shippingDetails ? shippingDetails.name : null;
         const shippingAddress = shippingDetails ? shippingDetails.address : null;
 
+        // Le port n'est connu qu'ici (choisi par Stripe selon l'adresse tapée) :
+        // on remplace le total "articles seuls" posé à la création de la
+        // session par le vrai montant payé, port inclus.
+        const shippingCents = checkoutSession.shipping_cost ? checkoutSession.shipping_cost.amount_total : 0;
+        const totalCents = typeof checkoutSession.amount_total === 'number' ? checkoutSession.amount_total : null;
+
         await sql`
           update orders
           set status = 'paid',
               customer_email = ${customerEmail},
               shipping_name = ${shippingName},
               shipping_address = ${shippingAddress ? JSON.stringify(shippingAddress) : null},
+              shipping_cents = ${shippingCents},
+              total_cents = coalesce(${totalCents}, total_cents),
               updated_at = now()
           where id = ${order.id}
         `;

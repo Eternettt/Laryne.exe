@@ -206,6 +206,7 @@
     gap: 8px;
   }
   .cart-item .name { flex: 1; font-size: 14px; color: #7a2350; }
+  .cart-item .cart-remark { color: #9a5c78; font-style: italic; }
   .cart-item .qty-controls { display: flex; align-items: center; gap: 6px; }
   .cart-item .qty-controls button {
     width: 24px; height: 24px;
@@ -1029,7 +1030,22 @@ function normalizeTypes(p) {
   return [...new Set(types)];
 }
 
-let cart = {}; // { productId: quantity }
+// Panier : une entrée par combinaison produit + type + taille (pas juste par
+// produit), sinon deux tailles du même modèle s'écrasaient l'une l'autre.
+// Clé de ligne : "idProduit::type::taille". Chaque ligne garde sa propre
+// quantité et sa remarque (copiée depuis remarks[] au moment de l'ajout).
+let cart = {}; // { lineKey: { productId, type, size, remark, qty } }
+
+function cartLineKey(productId, type, size) {
+  return `${productId}::${type || "-"}::${size || "-"}`;
+}
+// Quantité déjà au panier pour un produit donné, TOUTES tailles/types confondus
+// (c'est cette somme qu'il faut comparer au stock, pas la ligne seule).
+function getProductQtyInCart(productId) {
+  return Object.values(cart)
+    .filter(l => l.productId === productId)
+    .reduce((sum, l) => sum + l.qty, 0);
+}
 
 // État de la fenêtre de détail produit
 const remarks = {};      // { productId: texte de la remarque }
@@ -1220,64 +1236,66 @@ function renderProducts() {
 }
 
 // ---- Gestion du panier ----
-function addToCart(id) {
-  const product = products.find(p => p.id === id);
-  const currentQty = cart[id] || 0;
-  if (currentQty >= product.stock) {
-    showToast("Stock maximum atteint pour ce produit.");
-    return;
-  }
-  cart[id] = currentQty + 1;
-  updateCartUI();
-  showToast(`${product.name} ajouté au panier`);
-}
+// addToCart(id) (ajout rapide sans taille/type) n'est plus utilisée depuis que
+// les post-its n'ont plus de bouton dessus : le seul chemin d'ajout passe
+// maintenant par confirmAddToCart(), qui connaît toujours la taille et le type.
 
-function changeQty(id, delta) {
-  const product = products.find(p => p.id === id);
-  let qty = (cart[id] || 0) + delta;
+function changeQty(lineKey, delta) {
+  const line = cart[lineKey];
+  if (!line) return;
+  const product = products.find(p => p.id === line.productId);
+  const otherLinesQty = getProductQtyInCart(line.productId) - line.qty;
+  let qty = line.qty + delta;
   if (qty <= 0) {
-    delete cart[id];
-  } else if (qty > product.stock) {
+    delete cart[lineKey];
+  } else if (otherLinesQty + qty > product.stock) {
     showToast("Stock maximum atteint pour ce produit.");
     return;
   } else {
-    cart[id] = qty;
+    line.qty = qty;
   }
   updateCartUI();
 }
 
-function removeFromCart(id) {
-  delete cart[id];
+function removeFromCart(lineKey) {
+  delete cart[lineKey];
   updateCartUI();
 }
 
 function updateCartUI() {
   const itemsContainer = document.getElementById("cart-items");
-  const ids = Object.keys(cart);
+  const lineKeys = Object.keys(cart);
   let total = 0;
   let count = 0;
 
-  if (ids.length === 0) {
+  if (lineKeys.length === 0) {
     itemsContainer.innerHTML = '<p class="empty-msg">Votre panier est vide.</p>';
   } else {
     itemsContainer.innerHTML = "";
-    ids.forEach(id => {
-      const product = products.find(p => p.id == id);
-      const qty = cart[id];
-      const subtotal = product.price * qty;
+    lineKeys.forEach(lineKey => {
+      const line = cart[lineKey];
+      const product = products.find(p => p.id === line.productId);
+      if (!product) { delete cart[lineKey]; return; }
+      const subtotal = product.price * line.qty;
       total += subtotal;
-      count += qty;
+      count += line.qty;
+
+      const details = [line.type, line.size ? `taille ${line.size}` : null].filter(Boolean).join(" · ");
 
       const item = document.createElement("div");
       item.className = "cart-item";
       item.innerHTML = `
-        <div class="name">${stringzEscapeHtml(product.name)}<br><small>${product.price.toFixed(2).replace('.', ',')} € x ${qty}</small></div>
-        <div class="qty-controls">
-          <button onclick="changeQty(${product.id}, -1)">−</button>
-          <span>${qty}</span>
-          <button onclick="changeQty(${product.id}, 1)">+</button>
+        <div class="name">
+          ${stringzEscapeHtml(product.name)}${details ? ` <small>(${stringzEscapeHtml(details)})</small>` : ""}
+          <br><small>${product.price.toFixed(2).replace('.', ',')} € x ${line.qty}</small>
+          ${line.remark ? `<br><small class="cart-remark">📝 ${stringzEscapeHtml(line.remark)}</small>` : ""}
         </div>
-        <button class="remove" onclick="removeFromCart(${product.id})">Suppr.</button>
+        <div class="qty-controls">
+          <button onclick="changeQty('${lineKey}', -1)">−</button>
+          <span>${line.qty}</span>
+          <button onclick="changeQty('${lineKey}', 1)">+</button>
+        </div>
+        <button class="remove" onclick="removeFromCart('${lineKey}')">Suppr.</button>
       `;
       itemsContainer.appendChild(item);
     });
@@ -1310,7 +1328,7 @@ async function checkout() {
     const response = await fetch("/api/create-checkout-session", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ cart }),
+      body: JSON.stringify({ cart: Object.values(cart) }),
     });
 
     const data = await response.json().catch(() => ({}));
@@ -1983,12 +2001,19 @@ function confirmAddToCart() {
     showToast("Choisis une taille avant d'ajouter au panier.");
     return;
   }
-  const currentQty = cart[currentProduct.id] || 0;
+  const currentQty = getProductQtyInCart(currentProduct.id);
   if (currentQty + detailQty > currentProduct.stock) {
     showToast("Stock maximum atteint pour ce produit.");
     return;
   }
-  cart[currentProduct.id] = currentQty + detailQty;
+  const lineKey = cartLineKey(currentProduct.id, selectedType, selectedSize);
+  const remark = remarks[currentProduct.id] || "";
+  if (cart[lineKey]) {
+    cart[lineKey].qty += detailQty;
+    cart[lineKey].remark = remark; // reprend la remarque la plus récente pour ce produit
+  } else {
+    cart[lineKey] = { productId: currentProduct.id, type: selectedType, size: selectedSize, remark, qty: detailQty };
+  }
   updateCartUI();
   const typeLabel = selectedType ? ` (${selectedType})` : "";
   showToast(`${currentProduct.name}${typeLabel} (taille ${selectedSize}) ajouté au panier`);

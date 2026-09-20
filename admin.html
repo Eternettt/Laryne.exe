@@ -342,7 +342,11 @@
   }
   .order-summary .ord-address.missing { color: #a8241a; font-style: italic; }
   .order-summary .ord-items { font-size: 12px; color: #6a4358; margin-top: 2px; }
+  .order-summary .ord-item-line { margin-bottom: 3px; }
+  .order-summary .ord-item-details { color: #9a5c78; }
+  .order-summary .ord-item-remark { color: #b06084; }
   .order-summary .ord-total { font-size: 13px; font-weight: bold; color: #1a1a1a; margin-top: 2px; }
+  .order-summary .ord-shipping { font-weight: normal; color: #9a5c78; font-size: 11px; }
 
   .btn-ship { background: #d3f0d8; color: #1a6b2c; }
   .btn-ship:hover { background: #bce8c3; }
@@ -369,6 +373,7 @@
   .od-items-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 4px; }
   .od-items-table th { text-align: left; color: #9a5c78; font-size: 11px; text-transform: uppercase; padding: 4px 6px; border-bottom: 2px solid #f0c8dc; }
   .od-items-table td { padding: 6px; border-bottom: 1px solid #f5e0ea; }
+  .od-items-table .od-item-remark { color: #b06084; font-size: 12px; }
   .od-total { text-align: right; font-weight: bold; font-size: 15px; margin-top: 10px; color: #1a1a1a; }
   .od-session { margin-top: 14px; font-size: 11px; color: #b0879c; word-break: break-all; }
 
@@ -1182,8 +1187,16 @@
       .forEach(o => {
         const addr = formatAddress(o);
         const itemsSummary = (o.items || [])
-          .map(it => `${it.qty}× ${stringzEscapeHtml(it.name)}`)
-          .join(', ');
+          .map(it => {
+            const details = [it.type, it.size ? `taille ${it.size}` : null].filter(Boolean).join(' · ');
+            return `
+              <div class="ord-item-line">
+                ${it.qty}× ${stringzEscapeHtml(it.name)}${details ? ` <span class="ord-item-details">(${stringzEscapeHtml(details)})</span>` : ''}
+                ${it.remark ? `<br><em class="ord-item-remark">📝 ${stringzEscapeHtml(it.remark)}</em>` : ''}
+              </div>
+            `;
+          })
+          .join('');
 
         const card = document.createElement('div');
         card.className = 'model-card order-card';
@@ -1201,7 +1214,10 @@
               : `<div class="ord-address missing">Pas d'adresse enregistrée pour cette commande.</div>`
             }
             <div class="ord-items">${itemsSummary}</div>
-            <div class="ord-total">${o.total.toFixed(2).replace('.', ',')} €</div>
+            <div class="ord-total">
+              ${o.total.toFixed(2).replace('.', ',')} €
+              ${o.shippingCost ? `<span class="ord-shipping">(dont ${o.shippingCost.toFixed(2).replace('.', ',')} € de port)</span>` : ""}
+            </div>
           </div>
 
           <div class="model-actions">
@@ -1220,7 +1236,12 @@
 
     const itemsRows = (o.items || []).map(it => `
       <tr>
-        <td>${stringzEscapeHtml(it.name)}${it.customOrder ? ' <em>(création personnalisée)</em>' : ''}</td>
+        <td>
+          ${stringzEscapeHtml(it.name)}${it.customOrder ? ' <em>(création personnalisée)</em>' : ''}
+          ${it.remark ? `<br><em class="od-item-remark">📝 ${stringzEscapeHtml(it.remark)}</em>` : ''}
+        </td>
+        <td>${it.type ? stringzEscapeHtml(it.type) : '—'}</td>
+        <td>${it.size ? stringzEscapeHtml(it.size) : '—'}</td>
         <td>${it.qty}</td>
         <td>${Number(it.unitPrice || 0).toFixed(2).replace('.', ',')} €</td>
         <td>${(Number(it.unitPrice || 0) * (it.qty || 1)).toFixed(2).replace('.', ',')} €</td>
@@ -1241,9 +1262,10 @@
 
       <div class="od-section-title">Articles</div>
       <table class="od-items-table">
-        <thead><tr><th>Article</th><th>Qté</th><th>Prix unitaire</th><th>Sous-total</th></tr></thead>
+        <thead><tr><th>Article</th><th>Type</th><th>Taille</th><th>Qté</th><th>Prix unitaire</th><th>Sous-total</th></tr></thead>
         <tbody>${itemsRows}</tbody>
       </table>
+      ${o.shippingCost ? `<div class="od-row" style="margin-top:10px;"><span class="od-label">Port</span> ${o.shippingCost.toFixed(2).replace('.', ',')} €</div>` : ""}
       <div class="od-total">Total payé : ${o.total.toFixed(2).replace('.', ',')} €</div>
 
       ${o.sessionId ? `<div class="od-session">Référence Stripe : ${stringzEscapeHtml(o.sessionId)}</div>` : ""}
