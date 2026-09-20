@@ -203,7 +203,10 @@ module.exports = async (req, res) => {
 
     res.status(200).json({ url: checkoutSession.url });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Erreur lors de la création du paiement." });
+    console.error('[checkout] erreur :', err);
+    // DIAGNOSTIC TEMPORAIRE : on renvoie la vraie cause pour la voir dans le
+    // toast de boutique.html. Une fois le problème réglé, remets simplement :
+    //   { error: "Erreur lors de la création du paiement." }
+    res.status(500).json({ error: "Erreur lors de la création du paiement : " + (err && err.message ? err.message : String(err)) });
   }
 };
