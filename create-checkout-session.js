@@ -44,6 +44,9 @@ module.exports = async (req, res) => {
     // (une ligne par combinaison produit + type + taille, pas juste par produit :
     // deux tailles du même modèle sont deux lignes distinctes).
     if (Array.isArray(body.cart)) {
+      // Diagnostic (visible dans Vercel > Logs) : ce que le serveur reçoit vraiment.
+      console.log('[checkout v2] panier reçu :', JSON.stringify(body.cart));
+
       const lines = body.cart
         .map((l) => ({
           productId: parseInt(l && l.productId, 10),
@@ -71,7 +74,7 @@ module.exports = async (req, res) => {
       for (const line of lines) {
         const product = products.find((p) => p.id === line.productId);
         if (!product) {
-          res.status(400).json({ error: `Produit ${line.productId} introuvable.` });
+          res.status(400).json({ error: `Produit ${line.productId} introuvable. (v2)` });
           return;
         }
         if (product.stock < qtyByProduct[line.productId]) {
