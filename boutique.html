@@ -423,7 +423,7 @@
   #pwin-add-btn:hover:not(:disabled) { background: linear-gradient(#d1588c, #8a2a5c); }
   #pwin-add-btn:disabled { background: #999; cursor: not-allowed; }
 
-  /* Remarque */
+  /* Suggestion */
   #pwin-note textarea {
     width: 100%; height: 80px; resize: none;
     border: 1px solid #888; padding: 6px; font-family: inherit; font-size: 12px;
@@ -445,6 +445,23 @@
   #pwin-cart        { top: calc(50% + 40px);  left: calc(50% - 135px); }
   #pwin-note        { top: calc(50% + 40px);  left: calc(50% + 160px); }
 
+  /* Fenêtres de détail produit sur PC : jamais plus hautes que l'écran.
+     Si le contenu est trop grand, la fenêtre reste entièrement visible et son
+     corps défile à l'intérieur ; la barre de titre (avec le bouton ✕) reste
+     toujours affichée. La position exacte est calculée en JS
+     (layoutPwinsForDesktop) pour que rien ne dépasse, ni en haut ni sur les
+     côtés. Sur mobile (<= 640px), l'empilement existant est conservé tel quel. */
+  @media (min-width: 641px) {
+    .pwin-detail.open {
+      display: flex;
+      flex-direction: column;
+      max-height: calc(100vh - 24px);
+      max-height: calc(100dvh - 24px);
+    }
+    .pwin-detail .pwin-titlebar { flex: 0 0 auto; }
+    .pwin-detail .pwin-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+  }
+
   #pwin-description .pwin-body { max-height: 220px; overflow-y: auto; line-height: 1.5; }
   #pwin-description .pwin-body p:empty::before,
   #pwin-description-empty { color: #666; font-style: italic; }
@@ -453,7 +470,7 @@
     .pwin { width: 88vw; left: 6vw !important; }
 
     /* Les 6 fenêtres de détail produit (photos / description / type / taille /
-       panier / remarque) sont empilées dynamiquement en JS (voir
+       panier / suggestion) sont empilées dynamiquement en JS (voir
        layoutPwinsForMobile) : chacune est positionnée juste sous la
        précédente, en fonction de sa hauteur réelle. Ça garantit qu'elles ne
        se chevauchent jamais, quelle que soit la quantité de contenu (nombre
@@ -740,7 +757,7 @@
 <!-- Fenêtres de détail produit -->
 <div id="product-overlay" onclick="closeProductWindows()"></div>
 
-<div class="pwin" id="pwin-photos">
+<div class="pwin pwin-detail" id="pwin-photos">
   <div class="pwin-titlebar">
     <span class="pwin-title">Photos</span>
     <div class="pwin-close" onclick="closeProductWindows()">✕</div>
@@ -760,7 +777,7 @@
   </div>
 </div>
 
-<div class="pwin" id="pwin-description">
+<div class="pwin pwin-detail" id="pwin-description">
   <div class="pwin-titlebar">
     <span class="pwin-title">Description</span>
     <div class="pwin-close" onclick="closeProductWindows()">✕</div>
@@ -770,7 +787,7 @@
   </div>
 </div>
 
-<div class="pwin" id="pwin-type">
+<div class="pwin pwin-detail" id="pwin-type">
   <div class="pwin-titlebar">
     <span class="pwin-title">Type</span>
     <div class="pwin-close" onclick="closeProductWindows()">✕</div>
@@ -781,7 +798,7 @@
   </div>
 </div>
 
-<div class="pwin" id="pwin-size">
+<div class="pwin pwin-detail" id="pwin-size">
   <div class="pwin-titlebar">
     <span class="pwin-title">Taille</span>
     <div class="pwin-close" onclick="closeProductWindows()">✕</div>
@@ -792,7 +809,7 @@
   </div>
 </div>
 
-<div class="pwin" id="pwin-cart">
+<div class="pwin pwin-detail" id="pwin-cart">
   <div class="pwin-titlebar">
     <span class="pwin-title">Ajouter au panier</span>
     <div class="pwin-close" onclick="closeProductWindows()">✕</div>
@@ -808,15 +825,15 @@
   </div>
 </div>
 
-<div class="pwin" id="pwin-note">
+<div class="pwin pwin-detail" id="pwin-note">
   <div class="pwin-titlebar">
-    <span class="pwin-title">Remarque</span>
+    <span class="pwin-title">Suggestion</span>
     <div class="pwin-close" onclick="closeProductWindows()">✕</div>
   </div>
   <div class="pwin-body">
     <p style="margin-bottom:6px;">Une demande spécifique ?</p>
     <textarea id="pwin-note-text" placeholder="Ex : broderie personnalisée, couleur sur mesure..."></textarea>
-    <button id="pwin-note-save" onclick="saveRemark()">Enregistrer la remarque</button>
+    <button id="pwin-note-save" onclick="saveRemark()">Enregistrer la suggestion</button>
   </div>
 </div>
 
@@ -1059,7 +1076,7 @@ function normalizeTypes(p) {
 // Panier : une entrée par combinaison produit + type + taille (pas juste par
 // produit), sinon deux tailles du même modèle s'écrasaient l'une l'autre.
 // Clé de ligne : "idProduit::type::taille". Chaque ligne garde sa propre
-// quantité et sa remarque (copiée depuis remarks[] au moment de l'ajout).
+// quantité et sa suggestion (copiée depuis remarks[] au moment de l'ajout).
 let cart = {}; // { lineKey: { productId, type, size, remark, qty } }
 
 function cartLineKey(productId, type, size) {
@@ -1074,7 +1091,7 @@ function getProductQtyInCart(productId) {
 }
 
 // État de la fenêtre de détail produit
-const remarks = {};      // { productId: texte de la remarque }
+const remarks = {};      // { productId: texte de la suggestion }
 let currentProduct = null;
 let galleryIndex = 0;
 let selectedSize = null;
@@ -1384,7 +1401,7 @@ function showToast(msg) {
   toastTimeout = setTimeout(() => toast.classList.remove("show"), 2000);
 }
 
-// ---- Fenêtres de détail produit (photos / taille / panier / remarque) ----
+// ---- Fenêtres de détail produit (photos / taille / panier / suggestion) ----
 const PWIN_IDS = ["pwin-photos", "pwin-description", "pwin-type", "pwin-size", "pwin-cart", "pwin-note"];
 
 // Compteur de z-index partagé par toutes les fenêtres pwin (drag ou ouverture programmatique)
@@ -1428,12 +1445,14 @@ function openProductWindows(id) {
     // pour repartir systématiquement de la disposition par défaut (CSS).
     el.style.left = "";
     el.style.top = "";
+    el.style.maxHeight = "";
     // Affiche tout de suite (display: block) pour pouvoir mesurer sa vraie
     // hauteur juste après (nécessaire à l'empilement mobile ci-dessous).
     el.classList.add("open");
   });
 
   layoutPwinsForMobile();
+  layoutPwinsForDesktop();
 
   PWIN_IDS.forEach((wid, i) => {
     const el = document.getElementById(wid);
@@ -1463,6 +1482,81 @@ function layoutPwinsForMobile() {
   // dernière fenêtre si l'empilement dépasse la hauteur de l'écran.
   document.body.style.minHeight = (cursor + 40) + "px";
 }
+
+// Sur PC : dispose les 6 fenêtres en grille (3 colonnes x 2 rangées quand la
+// largeur le permet), centrée dans la fenêtre du navigateur. Si la hauteur
+// disponible ne suffit pas, les fenêtres les plus hautes sont limitées en
+// hauteur et défilent à l'intérieur (voir .pwin-detail en CSS) : rien ne
+// dépasse de l'écran, et le bouton ✕ de chaque fenêtre reste accessible.
+function layoutPwinsForDesktop() {
+  if (window.matchMedia("(max-width: 640px)").matches) return;
+
+  const els = PWIN_IDS.map(wid => document.getElementById(wid));
+  const margin = 12, gapX = 24, gapY = 24;
+  const vw = document.documentElement.clientWidth;
+  const vh = document.documentElement.clientHeight;
+  const winW = els[0].offsetWidth || 274;
+
+  // Colonnes qui tiennent en largeur (3 sur un écran normal)
+  const cols = Math.max(1, Math.min(3, Math.floor((vw - 2 * margin + gapX) / (winW + gapX))));
+  const rows = Math.ceil(els.length / cols);
+  const rowOf = (i) => Math.floor(i / cols);
+
+  // Hauteur naturelle (sans limite) de chaque rangée
+  els.forEach(el => { el.style.maxHeight = "none"; });
+  const natural = [];
+  for (let r = 0; r < rows; r++) {
+    natural.push(Math.max(...els.filter((_, i) => rowOf(i) === r).map(el => el.offsetHeight)));
+  }
+
+  // Partage de la hauteur disponible : les rangées courtes gardent leur hauteur,
+  // le reste est réparti entre les rangées trop hautes.
+  let remaining = vh - 2 * margin - (rows - 1) * gapY;
+  const alloc = new Array(rows).fill(0);
+  let pending = natural.map((_, r) => r);
+  while (pending.length) {
+    const share = remaining / pending.length;
+    const fits = pending.filter(r => natural[r] <= share);
+    if (!fits.length) {
+      pending.forEach(r => { alloc[r] = Math.max(80, Math.floor(share)); });
+      break;
+    }
+    fits.forEach(r => { alloc[r] = natural[r]; remaining -= natural[r]; });
+    pending = pending.filter(r => !fits.includes(r));
+  }
+
+  els.forEach((el, i) => { el.style.maxHeight = alloc[rowOf(i)] + "px"; });
+
+  // Positionnement : grille centrée, jamais au-dessus du bord haut de l'écran
+  const totalH = alloc.reduce((a, b) => a + b, 0) + (rows - 1) * gapY;
+  let top = Math.max(margin, Math.floor((vh - totalH) / 2));
+  for (let r = 0; r < rows; r++) {
+    const rowEls = els.filter((_, i) => rowOf(i) === r);
+    const rowW = rowEls.length * winW + (rowEls.length - 1) * gapX;
+    let x = Math.max(margin, Math.floor((vw - rowW) / 2));
+    rowEls.forEach(el => {
+      el.style.top = top + "px";
+      el.style.left = x + "px";
+      x += winW + gapX;
+    });
+    top += alloc[r] + gapY;
+  }
+}
+
+// Redimensionnement du navigateur pendant que les fenêtres sont ouvertes
+let pwinResizeTimeout = null;
+window.addEventListener("resize", () => {
+  if (!document.getElementById("product-overlay").classList.contains("open")) return;
+  clearTimeout(pwinResizeTimeout);
+  pwinResizeTimeout = setTimeout(layoutPwinsForDesktop, 100);
+});
+
+// Échap ferme les fenêtres de détail (accès au bouton de fermeture au clavier)
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && document.getElementById("product-overlay").classList.contains("open")) {
+    closeProductWindows();
+  }
+});
 
 function closeProductWindows() {
   document.getElementById("product-overlay").classList.remove("open");
@@ -1833,7 +1927,7 @@ async function updateProductField(id, field, rawValue) {
   showToast("Article mis à jour.");
 }
 
-// Ouvre uniquement la fenêtre Photos (sans Taille/Panier/Remarque), pour éditer vite depuis la gestion
+// Ouvre uniquement la fenêtre Photos (sans Taille/Panier/Suggestion), pour éditer vite depuis la gestion
 function openPhotosOnly(id) {
   currentProduct = products.find(p => p.id === id);
   if (!currentProduct) return;
@@ -2036,7 +2130,7 @@ function confirmAddToCart() {
   const remark = remarks[currentProduct.id] || "";
   if (cart[lineKey]) {
     cart[lineKey].qty += detailQty;
-    cart[lineKey].remark = remark; // reprend la remarque la plus récente pour ce produit
+    cart[lineKey].remark = remark; // reprend la suggestion la plus récente pour ce produit
   } else {
     cart[lineKey] = { productId: currentProduct.id, type: selectedType, size: selectedSize, remark, qty: detailQty };
   }
@@ -2046,11 +2140,11 @@ function confirmAddToCart() {
   closeProductWindows();
 }
 
-// -- Remarque / demande spécifique --
+// -- Suggestion / demande spécifique --
 function saveRemark() {
   if (!currentProduct) return;
   remarks[currentProduct.id] = document.getElementById("pwin-note-text").value;
-  showToast("Remarque enregistrée.");
+  showToast("Suggestion enregistrée.");
 }
 
 // -- Déplacement (drag) et premier plan des fenêtres de détail --

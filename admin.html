@@ -248,6 +248,8 @@
     border: 1px solid #fff;
   }
   .diapo-empty-note { font-size: 12px; color: #b06084; margin-bottom: 10px; }
+  .image-thumb.broken img { outline: 2px solid #c0392b; background: #fbe4e1; }
+  .image-thumb.broken::after { content: '⚠'; position: absolute; left: 0; right: 0; top: 16px; text-align: center; color: #c0392b; font-size: 18px; pointer-events: none; }
 
   /* ---- Écran des catégories admin ---- */
   #category-screen {
@@ -353,6 +355,15 @@
   .btn-ship.confirming { background: #a8241a; color: #fff; }
   .btn-ship.confirming:hover { background: #8c1d15; }
 
+  .ord-status-badge { font-size: 11px; font-weight: bold; color: #7a2350; background: #f6c3dc; border-radius: 10px; padding: 2px 8px; }
+  #orders-scope-toggle { display: block; font-size: 13px; color: #7a2350; margin-bottom: 14px; cursor: pointer; }
+  #orders-scope-toggle input { margin-right: 6px; }
+  .od-refund { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .od-refund input { flex: 1; min-width: 200px; padding: 8px 10px; border: 1px solid #e3a9c6; border-radius: 6px; font-size: 13px; }
+  .btn-refund { padding: 8px 14px; background: #a8241a; color: #fff; border: none; border-radius: 6px; font-weight: bold; font-size: 13px; cursor: pointer; }
+  .btn-refund:hover:not(:disabled) { background: #8c1d15; }
+  .btn-refund:disabled { background: #aaa; cursor: not-allowed; }
+  .od-refund-note { font-size: 11px; color: #9a5c78; margin-top: 6px; }
   .order-card { cursor: pointer; }
   .order-card:hover { box-shadow: 0 8px 18px rgba(0,0,0,0.2); }
 
@@ -603,6 +614,10 @@
     <!-- Section commandes -->
     <div class="admin-section" id="section-orders">
       <button class="category-back-btn" onclick="showCategories()">← Retour aux catégories</button>
+      <label id="orders-scope-toggle">
+        <input type="checkbox" id="orders-show-all" onchange="loadOrders()">
+        Afficher aussi les commandes déjà expédiées ou remboursées (pour rembourser)
+      </label>
       <div id="orders-list"></div>
       <div id="orders-empty-note">
         <div class="emoji">📭</div>
@@ -645,7 +660,8 @@
   <div class="modal-box" style="width: 420px;">
     <div class="modal-titlebar"><span>Diaporama de l'accueil</span><span class="x" onclick="closeDiapoModal()">✕</span></div>
     <div class="modal-body">
-      <div class="diapo-empty-note">🔄 remplace une photo — ✕ la supprime.</div>
+      <div class="diapo-empty-note">🔄 remplace une photo — ✕ la supprime. Chaque changement est enregistré tout de suite et visible par tous les visiteurs.</div>
+      <div class="diapo-empty-note" id="diapo-source-note" style="display:none;"></div>
       <div class="image-thumbs" id="diapo-thumbs"></div>
       <label class="add-image-btn">
         📁 Ajouter une photo
@@ -1162,8 +1178,19 @@
   // une ligne puisse retrouver tous les détails sans refaire un appel réseau.
   let ordersCache = [];
 
+  function ordersShowAll() {
+    const box = document.getElementById('orders-show-all');
+    return !!(box && box.checked);
+  }
+
+  function orderStatusLabel(o) {
+    if (o.status === 'refunded') return 'Remboursée';
+    const base = o.status === 'partially_refunded' ? 'Partiellement remboursée' : (o.status === 'paid' ? 'Payée' : o.status);
+    return o.shippedAt ? base + ' · expédiée' : base;
+  }
+
   async function loadOrders() {
-    const orders = await stringzAdminListOrders();
+    const orders = await stringzAdminListOrders(ordersShowAll());
     ordersCache = orders || [];
     renderOrders(ordersCache);
   }
@@ -1181,10 +1208,17 @@
     emptyNote.classList.remove('show');
 
     // Le serveur les renvoie déjà triées, mais on s'assure ici que les plus
-    // anciennes commandes restent bien en haut de la liste.
+    // anciennes commandes restent bien en haut de la file d'envoi (et les plus
+    // récentes en haut quand on affiche tout l'historique).
+    const showAll = ordersShowAll();
     orders.slice()
-      .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+      .sort((a, b) => showAll
+        ? new Date(b.createdAt) - new Date(a.createdAt)
+        : new Date(a.createdAt) - new Date(b.createdAt))
       .forEach(o => {
+        const canShip = !o.shippedAt && (o.status === 'paid' || o.status === 'partially_refunded');
+        const statusBadge = (o.status !== 'paid' || o.shippedAt)
+          ? `<span class="ord-status-badge">${stringzEscapeHtml(orderStatusLabel(o))}</span>` : '';
         const addr = formatAddress(o);
         const itemsSummary = (o.items || [])
           .map(it => {
@@ -1207,6 +1241,7 @@
             <div class="ord-top-row">
               <span class="ord-id">Commande #${o.id}</span>
               <span class="ord-elapsed">${formatElapsed(o.createdAt)}</span>
+              ${statusBadge}
             </div>
             ${o.customerEmail ? `<div class="ord-email">${stringzEscapeHtml(o.customerEmail)}</div>` : ""}
             ${addr
@@ -1221,7 +1256,7 @@
           </div>
 
           <div class="model-actions">
-            <button class="btn-ship" onclick="event.stopPropagation(); handleShipClick(${o.id}, this)">📦 Marquer comme envoyée</button>
+            ${canShip ? `<button class="btn-ship" onclick="event.stopPropagation(); handleShipClick(${o.id}, this)">📦 Marquer comme envoyée</button>` : ''}
           </div>
         `;
         list.appendChild(card);
@@ -1250,7 +1285,7 @@
 
     document.getElementById('order-detail-body').innerHTML = `
       <div class="od-row"><span class="od-label">Commande</span> #${o.id}</div>
-      <div class="od-row"><span class="od-label">Statut</span> ${stringzEscapeHtml(o.status)}</div>
+      <div class="od-row"><span class="od-label">Statut</span> ${stringzEscapeHtml(orderStatusLabel(o))}</div>
       <div class="od-row"><span class="od-label">Passée</span> ${new Date(o.createdAt).toLocaleString('fr-FR')} (${formatElapsed(o.createdAt)})</div>
       ${o.customerEmail ? `<div class="od-row"><span class="od-label">E-mail</span> ${stringzEscapeHtml(o.customerEmail)}</div>` : ""}
 
@@ -1268,6 +1303,17 @@
       ${o.shippingCost ? `<div class="od-row" style="margin-top:10px;"><span class="od-label">Port</span> ${o.shippingCost.toFixed(2).replace('.', ',')} €</div>` : ""}
       <div class="od-total">Total payé : ${o.total.toFixed(2).replace('.', ',')} €</div>
 
+      ${o.refunded ? `<div class="od-row"><span class="od-label">Remboursé</span> ${o.refunded.toFixed(2).replace('.', ',')} €</div>` : ""}
+
+      ${(o.status === 'paid' || o.status === 'partially_refunded') && (o.total - (o.refunded || 0)) > 0.004 ? `
+        <div class="od-section-title">Remboursement</div>
+        <div class="od-refund">
+          <input type="text" inputmode="decimal" id="refund-amount" placeholder="Montant en € (vide = tout : ${(o.total - (o.refunded || 0)).toFixed(2).replace('.', ',')} €)">
+          <button class="btn-refund" id="refund-btn" onclick="handleRefundClick(${o.id})">💸 Rembourser</button>
+        </div>
+        <div class="od-refund-note">Le remboursement est envoyé à Stripe et crédité sur le moyen de paiement du client. Le stock n'est pas remis à jour automatiquement (à ajuster à la main si l'article revient).</div>
+      ` : ""}
+
       ${o.sessionId ? `<div class="od-session">Référence Stripe : ${stringzEscapeHtml(o.sessionId)}</div>` : ""}
     `;
 
@@ -1275,6 +1321,42 @@
   }
   function closeOrderDetailModal() {
     document.getElementById('order-detail-modal').classList.remove('open');
+  }
+
+  // ---- Remboursement (via Stripe, côté serveur : /api/orders?mode=refund) ----
+  async function handleRefundClick(id) {
+    const o = ordersCache.find(x => x.id === id);
+    if (!o) return;
+    const remaining = o.total - (o.refunded || 0);
+    const fmt = (n) => n.toFixed(2).replace('.', ',') + ' €';
+
+    const raw = document.getElementById('refund-amount').value.trim().replace(',', '.');
+    let amount; // undefined = tout ce qui reste
+    if (raw !== '') {
+      amount = Number(raw);
+      if (!isFinite(amount) || amount <= 0 || amount > remaining + 0.001) {
+        showToast('Montant invalide (maximum ' + fmt(remaining) + ').');
+        return;
+      }
+    }
+    const shown = amount === undefined ? remaining : amount;
+    if (!confirm('Rembourser ' + fmt(shown) + ' sur la commande #' + id + ' ?\nCette action est irréversible.')) return;
+
+    const btn = document.getElementById('refund-btn');
+    btn.disabled = true;
+    btn.textContent = '...';
+    const result = await stringzAdminRefundOrder(id, amount);
+    if (!result.ok) {
+      showToast((result.data && result.data.error) || 'Erreur lors du remboursement.');
+      btn.disabled = false;
+      btn.textContent = '💸 Rembourser';
+      return;
+    }
+    showToast('Remboursement de ' + fmt(shown) + ' effectué ✓');
+    await loadOrders();
+    // En mode "file d'envoi", une commande totalement remboursée disparaît de la liste.
+    if (ordersCache.find(x => x.id === id)) openOrderDetail(id);
+    else closeOrderDetailModal();
   }
 
   function handleShipClick(id, btn) {
@@ -1310,6 +1392,12 @@
       showToast((result.data && result.data.error) || "Erreur lors de la validation.");
       resetShipButton(btn);
       btn.disabled = false;
+      return;
+    }
+    if (ordersShowAll()) {
+      // Historique complet : la commande reste affichée, avec son nouveau statut.
+      showToast('Commande marquée comme envoyée ✓');
+      loadOrders();
       return;
     }
     const card = document.querySelector(`.model-card[data-id="${id}"]`);
@@ -1447,20 +1535,53 @@
   });
 
   // ==================== Diaporama de l'accueil ====================
+  // La liste des photos est enregistrée sur le SERVEUR (voir shared-data.js et
+  // /api/products?diapo=...) : chaque changement est visible par tous les visiteurs.
   let diapoPhotos = [];
+  let diapoBusy = false;
 
-  function openDiapoModal() {
-    diapoPhotos = stringzLoadDiapo();
-    renderDiapoThumbs();
+  async function openDiapoModal() {
     document.getElementById('diapo-modal').classList.add('open');
+    document.getElementById('diapo-thumbs').innerHTML = '<div class="diapo-empty-note">Chargement…</div>';
+
+    // Photos que l'admin avait ajoutées avant ce changement (elles n'existaient que
+    // dans ce navigateur) : envoyées au serveur une seule fois, si rien n'est encore enregistré.
+    try {
+      const current = await stringzFetchDiapo();
+      if (!current.configured) {
+        const recovered = await stringzMigrateLegacyDiapo();
+        if (recovered) showToast(recovered + ' photo(s) de ce navigateur envoyée(s) au serveur ✓');
+      } else {
+        stringzCleanupLegacyDiapo();
+      }
+    } catch (e) {
+      showToast('Récupération des anciennes photos impossible : ' + e.message);
+    }
+
+    const { photos, configured } = await stringzFetchDiapo();
+    diapoPhotos = photos;
+    const note = document.getElementById('diapo-source-note');
+    note.style.display = configured ? 'none' : 'block';
+    note.textContent = "Photos par défaut du site (fichiers photo1.jpg, photo2.jpg, photo3.jpg). Dès que tu modifies quelque chose, la liste est enregistrée pour tous les visiteurs. ⚠ = fichier introuvable : remplace-le avec 🔄.";
+    renderDiapoThumbs();
   }
   function closeDiapoModal() {
     document.getElementById('diapo-modal').classList.remove('open');
   }
 
-  function persistDiapo() {
-    stringzSaveDiapo(diapoPhotos);
-    showToast('Diaporama enregistré ✓');
+  // Enregistre la liste sur le serveur. En cas d'échec, on revient à l'état
+  // précédent et on le dit clairement (plus de faux "enregistré ✓").
+  async function persistDiapo(previous) {
+    const { ok, data } = await stringzAdminSaveDiapo(diapoPhotos);
+    if (!ok) {
+      diapoPhotos = previous;
+      showToast((data && data.error) || "Erreur : le diaporama n'a PAS été enregistré.");
+      renderDiapoThumbs();
+      return false;
+    }
+    document.getElementById('diapo-source-note').style.display = 'none';
+    showToast('Diaporama enregistré ✓ (visible par tous les visiteurs)');
+    return true;
   }
 
   function renderDiapoThumbs() {
@@ -1471,7 +1592,7 @@
     }
     container.innerHTML = diapoPhotos.map((src, i) => `
       <div class="image-thumb">
-        <img src="${stringzEscapeHtml(src)}" alt="">
+        <img src="${stringzEscapeHtml(src)}" alt="" onerror="this.parentElement.classList.add('broken'); this.parentElement.title='Fichier introuvable'">
         <div class="del-img" title="Supprimer" onclick="deleteDiapoImage(${i})">✕</div>
         <label class="replace-img" title="Remplacer">
           🔄
@@ -1481,50 +1602,61 @@
     `).join('');
   }
 
-  function addDiapoImage(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      diapoPhotos.push(e.target.result);
-      persistDiapo();
-      renderDiapoThumbs();
-    };
-    reader.readAsDataURL(file);
-    event.target.value = '';
+  // Compresse + envoie la photo, renvoie son adresse (ou null en cas d'échec).
+  async function uploadDiapoFile(file) {
+    try {
+      showToast('Envoi de la photo…');
+      const up = await stringzAdminUploadDiapoImage(await stringzPrepareImageFile(file));
+      if (!up.ok) { showToast(up.error); return null; }
+      return up.url;
+    } catch (e) {
+      showToast(e.message || "Impossible d'envoyer cette photo.");
+      return null;
+    }
   }
 
-  function replaceDiapoImage(index, event) {
+  async function addDiapoImage(event) {
     const file = event.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      diapoPhotos[index] = e.target.result;
-      persistDiapo();
-      renderDiapoThumbs();
-    };
-    reader.readAsDataURL(file);
     event.target.value = '';
+    if (!file || diapoBusy) return;
+    diapoBusy = true;
+    try {
+      const url = await uploadDiapoFile(file);
+      if (!url) return;
+      const previous = diapoPhotos.slice();
+      diapoPhotos.push(url);
+      if (await persistDiapo(previous)) renderDiapoThumbs();
+    } finally { diapoBusy = false; }
   }
 
-  function deleteDiapoImage(index) {
+  async function replaceDiapoImage(index, event) {
+    const file = event.target.files[0];
+    event.target.value = '';
+    if (!file || diapoBusy) return;
+    diapoBusy = true;
+    try {
+      const url = await uploadDiapoFile(file);
+      if (!url) return;
+      const previous = diapoPhotos.slice();
+      diapoPhotos[index] = url;
+      if (await persistDiapo(previous)) renderDiapoThumbs();
+    } finally { diapoBusy = false; }
+  }
+
+  async function deleteDiapoImage(index) {
+    if (diapoBusy) return;
     if (diapoPhotos.length <= 1) {
       showToast('Il faut garder au moins une photo');
       return;
     }
     if (!confirm('Supprimer cette photo du diaporama ?')) return;
-    diapoPhotos.splice(index, 1);
-    persistDiapo();
-    renderDiapoThumbs();
+    diapoBusy = true;
+    try {
+      const previous = diapoPhotos.slice();
+      diapoPhotos.splice(index, 1);
+      if (await persistDiapo(previous)) renderDiapoThumbs();
+    } finally { diapoBusy = false; }
   }
-
-  // Se met à jour si modifié depuis un autre onglet
-  stringzOnDiapoChanged(() => {
-    diapoPhotos = stringzLoadDiapo();
-    if (document.getElementById('diapo-modal').classList.contains('open')) {
-      renderDiapoThumbs();
-    }
-  });
 
   // ---- Démarrage ----
   (async function initAdminPage() {

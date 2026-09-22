@@ -74,7 +74,7 @@
 <body>
   <div class="card">
     <h1 id="result-title">✅ Paiement confirmé</h1>
-    <p id="result-text">Merci pour ta commande sur Laryne.exe ! Un e-mail de confirmation t'a été envoyé par Stripe.</p>
+    <p id="result-text">Merci pour ta commande sur Laryne.exe ! Un e-mail de confirmation t'a été envoyé à l'adresse indiquée lors du paiement.</p>
 
     <div class="order-summary" id="order-summary" style="display:none;"></div>
     <p class="no-account-note" id="no-account-note" style="display:none;">
@@ -129,8 +129,14 @@
         return;
       }
 
-      if (order.status === 'paid') {
-        showState('✅ Paiement confirmé', "Merci pour ta commande sur Laryne.exe ! Un e-mail de confirmation t'a été envoyé par Stripe.");
+      if (order.status === 'paid' || order.status === 'partially_refunded') {
+        showState('✅ Paiement confirmé', "Merci pour ta commande sur Laryne.exe ! Un e-mail de confirmation t'a été envoyé à l'adresse indiquée lors du paiement (pense à vérifier tes spams).");
+        renderOrder(order);
+        return;
+      }
+
+      if (order.status === 'refunded') {
+        showState('↩️ Commande remboursée', "Cette commande a été remboursée. Le remboursement apparaît sur ton moyen de paiement sous quelques jours selon ta banque.");
         renderOrder(order);
         return;
       }

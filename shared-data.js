@@ -111,9 +111,17 @@ async function stringzFetchOrderBySession(sessionId) {
   const { ok, data } = await stringzApiFetch('/api/orders/by-session?session_id=' + encodeURIComponent(sessionId));
   return ok ? data.order : null;
 }
-async function stringzAdminListOrders() {
-  const { ok, data } = await stringzApiFetch('/api/admin/orders');
+// includeAll = false : file d'attente "à expédier" (payées, pas encore expédiées).
+// includeAll = true  : tout l'historique payé / remboursé, expédié ou non
+//                      (sert à retrouver une commande à rembourser).
+async function stringzAdminListOrders(includeAll = false) {
+  const path = includeAll ? '/api/orders?mode=admin&scope=all' : '/api/admin/orders';
+  const { ok, data } = await stringzApiFetch(path);
   return ok ? (data.orders || []) : null;
+}
+// ---- Rembourse une commande via Stripe (admin). amount en euros ; absent = tout ce qui reste ----
+async function stringzAdminRefundOrder(id, amount) {
+  return stringzApiFetch('/api/orders?mode=refund', { method: 'POST', body: { id, amount } });
 }
 // ---- Marque une commande comme expédiée (elle sort alors de la liste ci-dessus) ----
 // Appelle directement /api/orders (le vrai fichier de la fonction) plutôt que
@@ -127,39 +135,134 @@ async function stringzAdminMarkOrderShipped(id) {
 
 /* ==========================================================================
    Diaporama de la page d'accueil (carré photo qui défile + lightbox)
+   ==========================================================================
+   La liste des photos est enregistrée SUR LE SERVEUR (base de données, via
+   /api/products?diapo=...) : c'est la même pour tous les visiteurs, et l'admin
+   la modifie depuis admin.html. Rien n'est plus stocké dans le localStorage
+   (ça ne fonctionnait que dans le navigateur qui avait fait la modification).
    ========================================================================== */
 
-const STRINGZ_DIAPO_KEY = 'stringzDiapoV1';
+// Ancienne clé localStorage (avant le passage au serveur). Gardée uniquement
+// pour nettoyer les navigateurs et récupérer d'éventuelles photos de l'admin.
+const STRINGZ_DIAPO_LEGACY_KEY = 'stringzDiapoV1';
 
+// Photos utilisées tant que l'admin n'a rien enregistré (fichiers à la racine du site).
 const STRINGZ_DEFAULT_DIAPO = ['photo1.jpg', 'photo2.jpg', 'photo3.jpg'];
 
-// ---- Charge les photos du diaporama (localStorage si présent, sinon valeurs par défaut) ----
-function stringzLoadDiapo() {
-  try {
-    const raw = localStorage.getItem(STRINGZ_DIAPO_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length) return parsed;
-    }
-  } catch (e) { /* localStorage indisponible ou données corrompues */ }
-
-  const defaults = JSON.parse(JSON.stringify(STRINGZ_DEFAULT_DIAPO));
-  stringzSaveDiapo(defaults);
-  return defaults;
+// ---- Récupère la liste depuis le serveur (public) ----
+// Renvoie { photos, configured } : configured = false tant que l'admin n'a rien
+// enregistré (ou si le serveur est injoignable) → photos par défaut.
+async function stringzFetchDiapo() {
+  const { ok, data } = await stringzApiFetch('/api/products?diapo=1', { cache: 'no-store' });
+  if (ok && Array.isArray(data.photos) && data.photos.length) {
+    return { photos: data.photos, configured: true };
+  }
+  return { photos: STRINGZ_DEFAULT_DIAPO.slice(), configured: false };
 }
 
-// ---- Sauvegarde les photos du diaporama : visible instantanément sur les autres pages ----
-function stringzSaveDiapo(photos) {
-  try {
-    localStorage.setItem(STRINGZ_DIAPO_KEY, JSON.stringify(photos));
-  } catch (e) { /* quota dépassé, images trop lourdes en base64, etc. */ }
+// ---- Admin : enregistre la liste (remplace la précédente pour tous les visiteurs) ----
+async function stringzAdminSaveDiapo(photos) {
+  return stringzApiFetch('/api/products?diapo=1', { method: 'PUT', body: { photos } });
 }
 
-// ---- Prévient les autres onglets/pages ouverts en même temps ----
-function stringzOnDiapoChanged(callback) {
-  window.addEventListener('storage', (e) => {
-    if (e.key === STRINGZ_DIAPO_KEY) callback();
+// ---- Admin : envoie une photo (data URL) au serveur, renvoie { ok, url } ----
+async function stringzAdminUploadDiapoImage(dataUrl) {
+  const { ok, data } = await stringzApiFetch('/api/products?diapo=upload', { method: 'POST', body: { dataUrl } });
+  return ok ? { ok: true, url: data.url } : { ok: false, error: data.error || "Échec de l'envoi de la photo." };
+}
+
+// ---- Prépare une photo avant envoi : réduite à 1600 px max et recompressée en JPEG ----
+// (une photo de téléphone de plusieurs Mo dépasserait la limite de taille d'une
+// requête ; 1600 px suffit largement pour un carré de 250 px et son agrandissement).
+function stringzReadFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('Lecture du fichier impossible.'));
+    reader.readAsDataURL(file);
   });
+}
+
+async function stringzCompressDataUrl(dataUrl, maxSide = 1600, quality = 0.85) {
+  // GIF : on garde le fichier tel quel (une recompression supprimerait l'animation).
+  if (/^data:image\/gif/.test(dataUrl) && dataUrl.length <= 3000000) return dataUrl;
+  try {
+    const img = await new Promise((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = () => reject(new Error('decode'));
+      i.src = dataUrl;
+    });
+    const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff'; // fond blanc pour les PNG transparents
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg', quality);
+  } catch (e) {
+    // Format que le navigateur ne sait pas lire (ex. HEIC hors Safari) : envoi tel quel
+    // seulement s'il est déjà léger et dans un format accepté par le serveur.
+    if (dataUrl.length <= 3000000 && /^data:image\/(jpeg|png|webp)/.test(dataUrl)) return dataUrl;
+    throw new Error("Impossible de lire cette photo (format non pris en charge ou trop lourde). Utilise un JPG ou un PNG.");
+  }
+}
+
+async function stringzPrepareImageFile(file) {
+  return stringzCompressDataUrl(await stringzReadFileAsDataUrl(file));
+}
+
+// ---- Ancien stockage localStorage : lecture, nettoyage, récupération ----
+function stringzReadLegacyDiapo() {
+  try {
+    const raw = localStorage.getItem(STRINGZ_DIAPO_LEGACY_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    return Array.isArray(parsed) ? parsed : null;
+  } catch (e) { return null; }
+}
+
+function stringzClearLegacyDiapo() {
+  try { localStorage.removeItem(STRINGZ_DIAPO_LEGACY_KEY); } catch (e) { /* localStorage indisponible */ }
+}
+
+// Pages publiques : supprime l'ancienne liste "figée" des navigateurs (photos par
+// défaut copiées dans le localStorage de chaque visiteur). On la CONSERVE si elle
+// contient de vraies photos (data:) : ce sont peut-être celles de l'admin, qui les
+// récupère depuis admin.html (voir stringzMigrateLegacyDiapo).
+function stringzCleanupLegacyDiapo() {
+  const legacy = stringzReadLegacyDiapo();
+  if (legacy && !legacy.some((p) => typeof p === 'string' && p.startsWith('data:'))) stringzClearLegacyDiapo();
+}
+
+// Admin : envoie au serveur les photos qu'il avait ajoutées avant ce changement
+// (elles n'existaient que dans ce navigateur), puis supprime l'ancien stockage.
+// Renvoie le nombre de photos récupérées, ou 0 s'il n'y avait rien à faire.
+async function stringzMigrateLegacyDiapo() {
+  const legacy = stringzReadLegacyDiapo();
+  if (!legacy) return 0;
+  if (!legacy.some((p) => typeof p === 'string' && p.startsWith('data:'))) {
+    stringzClearLegacyDiapo();
+    return 0;
+  }
+  const photos = [];
+  let uploaded = 0;
+  for (const src of legacy) {
+    if (typeof src !== 'string') continue;
+    if (src.startsWith('data:')) {
+      const up = await stringzAdminUploadDiapoImage(await stringzCompressDataUrl(src));
+      if (!up.ok) throw new Error(up.error);
+      photos.push(up.url);
+      uploaded++;
+    } else {
+      photos.push(src);
+    }
+  }
+  const saved = await stringzAdminSaveDiapo(photos);
+  if (!saved.ok) throw new Error((saved.data && saved.data.error) || 'Enregistrement impossible.');
+  stringzClearLegacyDiapo();
+  return uploaded;
 }
 
 /* ==========================================================================

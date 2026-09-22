@@ -987,27 +987,45 @@
 <!-- --- Carré photo qui défile + lightbox avec navigation --- -->
 <script>
   (function () {
-    // Les photos viennent maintenant de shared-data.js (modifiable depuis admin.html)
-    let photos = stringzLoadDiapo();
+    // Les photos viennent du SERVEUR (/api/products?diapo=1, voir shared-data.js) :
+    // la liste est définie depuis admin.html et identique pour tous les visiteurs.
+    let photos = [];
+    let lastServerList = null; // dernière liste reçue du serveur (pour ne rien refaire si elle n'a pas changé)
 
     const square = document.getElementById('photo-square');
+    const wrapper = document.querySelector('.photo-square-wrapper');
     const dotsContainer = document.getElementById('photo-lightbox-dots');
     let squareImgs = [];
     let lightboxDots = [];
     let squareIndex = 0;
     let autoplayId = null;
 
+    // Le carré reste caché le temps de recevoir la liste (évite un cadre blanc vide).
+    wrapper.style.visibility = 'hidden';
+
     function renderSquare() {
       square.innerHTML = '';
       squareIndex = 0;
       squareImgs = photos.map((src, i) => {
         const img = document.createElement('img');
-        img.src = src;
         img.alt = 'Photo ' + (i + 1);
         if (i === 0) img.classList.add('active');
+        // Photo introuvable : on la signale dans la console (avec son adresse exacte)
+        // et on l'écarte du défilement plutôt que d'afficher un cadre vide.
+        img.addEventListener('error', () => dropBrokenPhoto(src));
+        img.src = src;
         square.appendChild(img);
         return img;
       });
+    }
+
+    function dropBrokenPhoto(src) {
+      console.warn('[diaporama] image introuvable, ignorée :', src);
+      if (!photos.includes(src) || photos.length <= 1) return;
+      photos = photos.filter((p) => p !== src);
+      renderSquare();
+      renderDots();
+      startAutoplay();
     }
 
     function renderDots() {
@@ -1030,10 +1048,6 @@
         squareImgs[squareIndex].classList.add('active');
       }, 2500);
     }
-
-    renderSquare();
-    renderDots();
-    startAutoplay();
 
     // Lightbox
     const overlay = document.getElementById('photo-lightbox');
@@ -1094,9 +1108,14 @@
       if (e.key === 'ArrowRight') showNext();
     });
 
-    // Se met à jour si le diaporama est modifié depuis admin.html (autre onglet)
-    stringzOnDiapoChanged(() => {
-      photos = stringzLoadDiapo();
+    // Charge la liste depuis le serveur et (re)construit le diaporama si elle a changé.
+    async function loadPhotos() {
+      const { photos: list } = await stringzFetchDiapo();
+      wrapper.style.visibility = 'visible';
+      const json = JSON.stringify(list);
+      if (json === lastServerList) return;
+      lastServerList = json;
+      photos = list.slice();
       renderSquare();
       renderDots();
       startAutoplay();
@@ -1104,6 +1123,14 @@
         lightboxIndex = Math.min(lightboxIndex, Math.max(0, photos.length - 1));
         showLightboxPhoto();
       }
+    }
+
+    loadPhotos();
+    stringzCleanupLegacyDiapo(); // supprime l'ancienne liste figée du localStorage
+
+    // Si l'admin modifie le diaporama pendant que la page est ouverte : mise à jour au retour sur l'onglet
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) loadPhotos();
     });
   })();
 </script>

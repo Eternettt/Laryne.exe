@@ -207,17 +207,27 @@ module.exports = async (req, res) => {
     // totalCents ne compte ici que les articles : le port n'est connu
     // qu'après paiement. webhook.js met à jour total_cents et shipping_cents
     // avec les vrais montants dès que le paiement est confirmé.
-    await sql`
-      insert into orders (stripe_session_id, user_id, status, items, total_cents, linked_to_account)
-      values (${checkoutSession.id}, ${session ? session.uid : null}, 'pending', ${JSON.stringify(orderItems)}, ${totalCents}, ${!!session})
-    `;
+    try {
+      await sql`
+        insert into orders (stripe_session_id, user_id, status, items, total_cents, linked_to_account)
+        values (${checkoutSession.id}, ${session ? session.uid : null}, 'pending', ${JSON.stringify(orderItems)}, ${totalCents}, ${!!session})
+      `;
+    } catch (insertErr) {
+      // Sans ligne en base, un paiement réussi ne pourrait jamais être rattaché à une
+      // commande (ni mail, ni stock, ni remboursement). On invalide donc la session
+      // Stripe pour que le client ne puisse pas payer.
+      await stripe.checkout.sessions.expire(checkoutSession.id).catch(() => {});
+      throw insertErr;
+    }
 
     res.status(200).json({ url: checkoutSession.url });
   } catch (err) {
     console.error('[checkout] erreur :', err);
-    // DIAGNOSTIC TEMPORAIRE : on renvoie la vraie cause pour la voir dans le
-    // toast de boutique.html. Une fois le problème réglé, remets simplement :
-    //   { error: "Erreur lors de la création du paiement." }
-    res.status(500).json({ error: "Erreur lors de la création du paiement : " + (err && err.message ? err.message : String(err)) });
+    // Message générique côté client (une erreur brute peut révéler des détails
+    // internes). Pour revoir la vraie cause dans le toast de boutique.html pendant
+    // un débogage, ajoute la variable d'environnement CHECKOUT_DEBUG=1 sur Vercel
+    // (puis retire-la). Dans tous les cas, l'erreur complète est dans les logs Vercel.
+    const detail = process.env.CHECKOUT_DEBUG === '1' && err && err.message ? ' : ' + err.message : '';
+    res.status(500).json({ error: 'Erreur lors de la création du paiement' + detail + (detail ? '' : '.') });
   }
 };

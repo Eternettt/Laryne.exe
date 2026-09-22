@@ -371,7 +371,7 @@
       container.innerHTML = "<p>Aucune commande pour l'instant.</p>";
       return;
     }
-    const statusLabels = { pending: 'En attente de paiement', paid: 'Payée', failed: 'Échouée', refunded: 'Remboursée' };
+    const statusLabels = { pending: 'En attente de paiement', paid: 'Payée', failed: 'Échouée', refunded: 'Remboursée', partially_refunded: 'Partiellement remboursée' };
     container.innerHTML = orders.map(order => {
       const date = new Date(order.date).toLocaleDateString('fr-FR');
       const itemsHtml = (order.items || []).map(it =>

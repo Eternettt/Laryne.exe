@@ -7,6 +7,15 @@
        → réécrit vers /api/products?admin=1 (voir vercel.json), rôle admin
          revérifié EN BASE à chaque appel avant toute opération.
 
+   - Diaporama de la page d'accueil (mêmes fonction serverless, pour rester sous
+     la limite de fonctions du plan Hobby) :
+       GET  /api/products?diapo=1          → liste des photos (public)
+       PUT  /api/products?diapo=1          → enregistre la liste (admin)
+       POST /api/products?diapo=upload     → envoie une photo (admin)
+       GET  /api/products?diapo=img&id=N   → sert la photo N (public, cache long)
+     La liste est stockée dans la table site_settings (voir
+     migration-diaporama.sql) : c'est la même pour tous les visiteurs.
+
    Types disponibles (tanga, string, culotte...) : aucune colonne dédiée en
    base. Ils sont stockés dans "category" sous la forme "Tanga / String" et
    renvoyés au front sous forme de tableau "types" (voir typesFromCategory).
@@ -63,11 +72,159 @@ function toClientProduct(r) {
   };
 }
 
+// ==========================================================================
+// Diaporama de la page d'accueil
+// ==========================================================================
+const DIAPO_SETTING_KEY = 'diaporama';
+const MAX_DIAPO_PHOTOS = 20;
+// Limite d'une requête sur Vercel : ~4,5 Mo. Le navigateur compresse déjà les
+// photos (voir shared-data.js) ; ce plafond n'est qu'une protection.
+const MAX_DIAPO_IMAGE_B64_LENGTH = 3500000;
+const DIAPO_ALLOWED_MIMES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+
+// Une entrée du diaporama est soit une photo envoyée depuis l'admin
+// ("/api/products?diapo=img&id=12"), soit un fichier du site ("photo1.jpg").
+function isValidDiapoSrc(src) {
+  if (typeof src !== 'string' || src.length === 0 || src.length > 300) return false;
+  if (/^\/api\/products\?diapo=img&id=\d+$/.test(src)) return true;
+  return (
+    /^[A-Za-z0-9_-][A-Za-z0-9_\-. \/]*\.(jpe?g|png|webp|gif|avif)$/i.test(src) &&
+    !src.includes('..') &&
+    !src.includes('//')
+  );
+}
+
+// Vérifie que le contenu correspond bien au type annoncé (pas de fichier
+// quelconque déguisé en image).
+function looksLikeImage(mime, buffer) {
+  if (buffer.length < 12) return false;
+  if (mime === 'image/jpeg') return buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+  if (mime === 'image/png') return buffer.slice(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+  if (mime === 'image/gif') return buffer.slice(0, 4).toString('latin1') === 'GIF8';
+  if (mime === 'image/webp') return buffer.slice(0, 4).toString('latin1') === 'RIFF' && buffer.slice(8, 12).toString('latin1') === 'WEBP';
+  return false;
+}
+
+async function handleDiapo(req, res, mode, url) {
+  // ---- Une photo envoyée depuis l'admin (public) ----
+  // Une photo n'est jamais modifiée : la remplacer en crée une nouvelle (autre id),
+  // on peut donc la mettre en cache très longtemps.
+  if (mode === 'img') {
+    if (req.method !== 'GET') {
+      res.status(405).json({ error: 'Méthode non autorisée.' });
+      return;
+    }
+    const id = parseInt(url.searchParams.get('id'), 10);
+    if (!Number.isInteger(id)) {
+      res.status(400).json({ error: 'id invalide.' });
+      return;
+    }
+    const { rows } = await sql`select mime, data from diaporama_images where id = ${id}`;
+    if (!rows.length) {
+      res.status(404).json({ error: 'Image introuvable.' });
+      return;
+    }
+    res.setHeader('Content-Type', rows[0].mime);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    res.statusCode = 200;
+    res.end(Buffer.from(rows[0].data, 'base64'));
+    return;
+  }
+
+  // ---- Envoi d'une photo (admin) : renvoie l'adresse à mettre dans la liste ----
+  if (mode === 'upload') {
+    if (req.method !== 'POST') {
+      res.status(405).json({ error: 'Méthode non autorisée.' });
+      return;
+    }
+    const admin = await requireAdmin(req, res);
+    if (!admin) return;
+
+    const dataUrl = (req.body && req.body.dataUrl) || '';
+    const marker = ';base64,';
+    const cut = typeof dataUrl === 'string' ? dataUrl.indexOf(marker) : -1;
+    const mime = cut > 5 ? dataUrl.slice(5, cut) : '';
+    if (!dataUrl.startsWith('data:') || !DIAPO_ALLOWED_MIMES.includes(mime)) {
+      res.status(400).json({ error: 'Format non pris en charge (JPG, PNG, WebP ou GIF).' });
+      return;
+    }
+    const b64 = dataUrl.slice(cut + marker.length);
+    if (b64.length > MAX_DIAPO_IMAGE_B64_LENGTH) {
+      res.status(413).json({ error: 'Photo trop lourde.' });
+      return;
+    }
+    if (!/^[A-Za-z0-9+/]+={0,2}$/.test(b64) || !looksLikeImage(mime, Buffer.from(b64, 'base64'))) {
+      res.status(400).json({ error: 'Ce fichier n\'est pas une image valide.' });
+      return;
+    }
+    const { rows } = await sql`
+      insert into diaporama_images (mime, data) values (${mime}, ${b64}) returning id
+    `;
+    res.status(200).json({ url: `/api/products?diapo=img&id=${rows[0].id}` });
+    return;
+  }
+
+  // ---- Liste des photos (lecture publique / écriture admin) ----
+  if (mode !== 'list') {
+    res.status(404).json({ error: 'Action inconnue.' });
+    return;
+  }
+  res.setHeader('Cache-Control', 'no-store');
+
+  if (req.method === 'GET') {
+    const { rows } = await sql`select value from site_settings where key = ${DIAPO_SETTING_KEY}`;
+    // photos = null tant que l'admin n'a rien enregistré : le site utilise alors ses photos par défaut.
+    res.status(200).json({ photos: rows.length ? rows[0].value : null });
+    return;
+  }
+
+  if (req.method === 'PUT') {
+    const admin = await requireAdmin(req, res);
+    if (!admin) return;
+
+    const { photos } = req.body || {};
+    if (!Array.isArray(photos) || photos.length < 1 || photos.length > MAX_DIAPO_PHOTOS || !photos.every(isValidDiapoSrc)) {
+      res.status(400).json({ error: 'Liste de photos invalide (1 à ' + MAX_DIAPO_PHOTOS + ' photos).' });
+      return;
+    }
+
+    await sql`
+      insert into site_settings (key, value, updated_at)
+      values (${DIAPO_SETTING_KEY}, ${JSON.stringify(photos)}::jsonb, now())
+      on conflict (key) do update set value = excluded.value, updated_at = now()
+    `;
+
+    // Ménage : supprime les photos envoyées qui ne sont plus dans la liste.
+    // (On garde celles de moins de 10 minutes : une photo tout juste envoyée
+    // n'est pas encore dans la liste pendant quelques instants.)
+    const keptIds = photos
+      .map((src) => { const m = /diapo=img&id=(\d+)$/.exec(src); return m ? parseInt(m[1], 10) : null; })
+      .filter((id) => id !== null);
+    await sql`
+      delete from diaporama_images
+      where id <> all(${keptIds}) and created_at < now() - interval '10 minutes'
+    `;
+
+    res.status(200).json({ ok: true, photos });
+    return;
+  }
+
+  res.status(405).json({ error: 'Méthode non autorisée.' });
+}
+
 module.exports = async (req, res) => {
   const url = new URL(req.url, `https://${req.headers.host}`);
   const isAdmin = url.searchParams.get('admin') === '1';
+  const diapoMode = url.searchParams.get('diapo');
 
   try {
+    // ---- Diaporama de l'accueil (voir handleDiapo) ----
+    if (diapoMode) {
+      await handleDiapo(req, res, diapoMode === '1' ? 'list' : diapoMode, url);
+      return;
+    }
+
     // ---- Route publique : GET simple, pas de vérification ----
     if (!isAdmin) {
       if (req.method !== 'GET') {
