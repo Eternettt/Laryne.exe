@@ -318,10 +318,10 @@
 <script src="shared-data.js"></script>
 <script>
   /* ==========================================================================
-     Source des ateliers. Les ateliers sont désormais gérés depuis le panneau
-     admin (admin.html → Workshops) et stockés via shared-data.js, exactement
-     comme les produits de la boutique : toute modification faite là-bas est
-     répercutée ici automatiquement.
+     Source des ateliers. Les ateliers sont gérés depuis le panneau admin
+     (admin.html → Workshops) et enregistrés sur le SERVEUR via shared-data.js
+     (/api/products?workshops=...) : toute modification faite là-bas est la
+     même pour tous les visiteurs, pas seulement dans le navigateur de l'admin.
      ========================================================================== */
   let WORKSHOPS = [];
   let activeWorkshops = [];
@@ -332,10 +332,21 @@
     return end >= new Date();
   }
 
-  function loadAndRenderWorkshops() {
-    WORKSHOPS = stringzLoadWorkshops();
+  let lastServerWorkshopsList = null; // dernière liste reçue du serveur, pour ne rien refaire si rien n'a changé
+
+  async function loadAndRenderWorkshops() {
+    const { workshops: list } = await stringzFetchWorkshops();
+    const json = JSON.stringify(list);
+    if (json === lastServerWorkshopsList) return;
+    lastServerWorkshopsList = json;
+    WORKSHOPS = list;
     activeWorkshops = WORKSHOPS.filter(isUpcoming).sort((a, b) => a.date.localeCompare(b.date));
     renderList();
+    // Si l'atelier actuellement affiché en détail a été supprimé/modifié ailleurs,
+    // on revient simplement à la liste pour éviter d'afficher des infos périmées.
+    if (selectedWorkshop && !activeWorkshops.some(w => w.id === selectedWorkshop.id)) {
+      showList();
+    }
   }
 
   let selectedWorkshop = null;
@@ -500,15 +511,11 @@
   }
 
   loadAndRenderWorkshops();
+  stringzCleanupLegacyWorkshops(); // supprime l'ancienne liste figée du localStorage
 
-  // Se met à jour si modifié depuis un autre onglet (ex: admin.html)
-  stringzOnWorkshopsChanged(() => {
-    loadAndRenderWorkshops();
-    // Si l'atelier actuellement affiché en détail a été supprimé/modifié ailleurs,
-    // on revient simplement à la liste pour éviter d'afficher des infos périmées.
-    if (selectedWorkshop && !activeWorkshops.some(w => w.id === selectedWorkshop.id)) {
-      showList();
-    }
+  // Se met à jour au retour sur l'onglet (ex : modification faite depuis admin.html entre-temps)
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) loadAndRenderWorkshops();
   });
 </script>
 

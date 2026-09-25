@@ -604,6 +604,7 @@
     <div class="admin-section" id="section-workshop">
       <button class="category-back-btn" onclick="showCategories()">← Retour aux catégories</button>
       <button id="add-workshop-btn" onclick="openWorkshopModal()">➕ Ajouter un atelier</button>
+      <div class="diapo-empty-note" id="workshops-source-note" style="display:none;"></div>
       <div id="workshops-list"></div>
       <div id="workshop-empty-note">
         <div class="emoji">🗓️</div>
@@ -1101,9 +1102,44 @@
 
   // ==================== Workshops ====================
 
-  function persistWorkshops() {
-    stringzSaveWorkshops(workshops);
-    showToast('Enregistré ✓');
+  // Charge la liste depuis le serveur. Si rien n'y est encore enregistré,
+  // récupère au passage les ateliers que l'admin avait créés dans CE navigateur
+  // avant ce changement (ils n'existaient nulle part ailleurs).
+  async function loadWorkshopsFromServer() {
+    try {
+      const current = await stringzFetchWorkshops();
+      if (!current.configured) {
+        const recovered = await stringzMigrateLegacyWorkshops();
+        if (recovered) showToast('Ateliers de ce navigateur envoyés au serveur ✓');
+      } else {
+        stringzCleanupLegacyWorkshops();
+      }
+    } catch (e) {
+      showToast('Récupération des anciens ateliers impossible : ' + e.message);
+    }
+
+    const { workshops: list, configured } = await stringzFetchWorkshops();
+    workshops = list;
+    const note = document.getElementById('workshops-source-note');
+    note.style.display = configured ? 'none' : 'block';
+    note.textContent = "Atelier par défaut (aucun atelier enregistré sur le serveur pour le moment). Dès que tu ajoutes, modifies ou supprimes un atelier, la liste est enregistrée pour tous les visiteurs.";
+    renderWorkshops();
+  }
+
+
+  // Enregistre la liste sur le serveur. En cas d'échec, revient à l'état
+  // précédent (pas de faux "enregistré ✓") et le dit clairement.
+  async function persistWorkshops(previous) {
+    const { ok, data } = await stringzAdminSaveWorkshops(workshops);
+    if (!ok) {
+      workshops = previous;
+      renderWorkshops();
+      showToast((data && data.error) || "Erreur : l'atelier n'a PAS été enregistré.");
+      return false;
+    }
+    document.getElementById('workshops-source-note').style.display = 'none';
+    showToast('Enregistré ✓ (visible par tous les visiteurs)');
+    return true;
   }
 
   function renderWorkshops() {
@@ -1503,36 +1539,36 @@
     const description = descriptionRaw ? descriptionRaw.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean) : [];
     const icon = (workshopDraft && workshopDraft.icon) || '🧵';
 
+    const previous = workshops.slice();
+    let wasNew = false;
     if (workshopEditingId) {
       const w = workshops.find(x => x.id === workshopEditingId);
       if (w) {
         Object.assign(w, { icon, title, date, dateLabel, whenLabel, location, price, deposit, places, shortDescription, description, note });
       }
     } else {
+      wasNew = true;
       let id = `${slugify(title)}-${date}`;
       if (workshops.some(w => w.id === id)) id += `-${Date.now()}`;
       workshops.push({ id, icon, title, date, dateLabel, whenLabel, location, price, deposit, places, shortDescription, description, note });
     }
 
-    persistWorkshops();
-    renderWorkshops();
+    const editingId = workshopEditingId;
     closeWorkshopModal();
-    showToast(workshopEditingId ? 'Atelier modifié ✓' : 'Atelier ajouté ✓');
+    renderWorkshops();
+    persistWorkshops(previous).then((success) => {
+      if (success) showToast(editingId && !wasNew ? 'Atelier modifié ✓' : 'Atelier ajouté ✓');
+    });
     return false;
   }
 
-  function deleteWorkshop(id) {
+  async function deleteWorkshop(id) {
     if (!confirm('Supprimer définitivement cet atelier ?')) return;
+    const previous = workshops.slice();
     workshops = workshops.filter(w => w.id !== id);
-    persistWorkshops();
     renderWorkshops();
+    await persistWorkshops(previous);
   }
-
-  // Se met à jour si modifié depuis un autre onglet
-  stringzOnWorkshopsChanged(() => {
-    workshops = stringzLoadWorkshops();
-    renderWorkshops();
-  });
 
   // ==================== Diaporama de l'accueil ====================
   // La liste des photos est enregistrée sur le SERVEUR (voir shared-data.js et
@@ -1663,8 +1699,7 @@
     if (await checkAccess()) {
       await reloadProductsFromServer();
       renderModels();
-      workshops = stringzLoadWorkshops();
-      renderWorkshops();
+      await loadWorkshopsFromServer();
     }
   })();
 </script>

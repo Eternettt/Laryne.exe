@@ -7,6 +7,12 @@
        → réécrit vers /api/products?admin=1 (voir vercel.json), rôle admin
          revérifié EN BASE à chaque appel avant toute opération.
 
+   - Ateliers (workshops) de workshop.html, gérés depuis admin.html (mêmes
+     fonction serverless) :
+       GET /api/products?workshops=1  → liste des ateliers (public)
+       PUT /api/products?workshops=1  → enregistre la liste (admin)
+     Stockée dans site_settings comme le diaporama (voir migration-workshops.sql).
+
    - Diaporama de la page d'accueil (mêmes fonction serverless, pour rester sous
      la limite de fonctions du plan Hobby) :
        GET  /api/products?diapo=1          → liste des photos (public)
@@ -70,6 +76,75 @@ function toClientProduct(r) {
     icon: r.icon,
     images: r.images || [],
   };
+}
+
+// ==========================================================================
+// Ateliers (workshops), affichés sur workshop.html, gérés depuis admin.html
+// ==========================================================================
+const WORKSHOPS_SETTING_KEY = 'workshops';
+const MAX_WORKSHOPS = 100;
+const MAX_WORKSHOP_TEXT = 300;       // titre, lieu, horaire, phrase courte, note...
+const MAX_WORKSHOP_PARAGRAPH = 3000; // un paragraphe de description
+const MAX_WORKSHOP_PARAGRAPHS = 40;
+
+function isPlainString(v, maxLen) {
+  return typeof v === 'string' && v.length <= maxLen;
+}
+
+function isValidWorkshop(w) {
+  if (!w || typeof w !== 'object') return false;
+  if (!/^[a-z0-9-]{1,120}$/.test(w.id || '')) return false;
+  if (!isPlainString(w.icon, 20)) return false;
+  if (!isPlainString(w.title, MAX_WORKSHOP_TEXT) || !w.title.trim()) return false;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(w.date || '')) return false;
+  if (!isPlainString(w.dateLabel, MAX_WORKSHOP_TEXT)) return false;
+  if (!isPlainString(w.whenLabel, MAX_WORKSHOP_TEXT)) return false;
+  if (!isPlainString(w.location, MAX_WORKSHOP_TEXT)) return false;
+  if (typeof w.price !== 'number' || !(w.price >= 0) || w.price > 100000) return false;
+  if (typeof w.deposit !== 'number' || !(w.deposit >= 0) || w.deposit > 100000) return false;
+  if (!Number.isInteger(w.places) || w.places < 0 || w.places > 100000) return false;
+  if (!isPlainString(w.shortDescription, MAX_WORKSHOP_TEXT)) return false;
+  if (!isPlainString(w.note, MAX_WORKSHOP_TEXT)) return false;
+  if (!Array.isArray(w.description) || w.description.length > MAX_WORKSHOP_PARAGRAPHS) return false;
+  if (!w.description.every((p) => isPlainString(p, MAX_WORKSHOP_PARAGRAPH))) return false;
+  return true;
+}
+
+async function handleWorkshops(req, res) {
+  res.setHeader('Cache-Control', 'no-store');
+
+  if (req.method === 'GET') {
+    const { rows } = await sql`select value from site_settings where key = ${WORKSHOPS_SETTING_KEY}`;
+    // null tant que l'admin n'a rien enregistré : le site utilise alors les ateliers par défaut.
+    res.status(200).json({ workshops: rows.length ? rows[0].value : null });
+    return;
+  }
+
+  if (req.method === 'PUT') {
+    const admin = await requireAdmin(req, res);
+    if (!admin) return;
+
+    const { workshops } = req.body || {};
+    if (!Array.isArray(workshops) || workshops.length > MAX_WORKSHOPS || !workshops.every(isValidWorkshop)) {
+      res.status(400).json({ error: 'Liste d\'ateliers invalide.' });
+      return;
+    }
+    const ids = workshops.map((w) => w.id);
+    if (new Set(ids).size !== ids.length) {
+      res.status(400).json({ error: 'Deux ateliers ne peuvent pas avoir le même identifiant.' });
+      return;
+    }
+
+    await sql`
+      insert into site_settings (key, value, updated_at)
+      values (${WORKSHOPS_SETTING_KEY}, ${JSON.stringify(workshops)}::jsonb, now())
+      on conflict (key) do update set value = excluded.value, updated_at = now()
+    `;
+    res.status(200).json({ ok: true, workshops });
+    return;
+  }
+
+  res.status(405).json({ error: 'Méthode non autorisée.' });
 }
 
 // ==========================================================================
@@ -217,8 +292,15 @@ module.exports = async (req, res) => {
   const url = new URL(req.url, `https://${req.headers.host}`);
   const isAdmin = url.searchParams.get('admin') === '1';
   const diapoMode = url.searchParams.get('diapo');
+  const workshopsMode = url.searchParams.get('workshops');
 
   try {
+    // ---- Ateliers (voir handleWorkshops) ----
+    if (workshopsMode) {
+      await handleWorkshops(req, res);
+      return;
+    }
+
     // ---- Diaporama de l'accueil (voir handleDiapo) ----
     if (diapoMode) {
       await handleDiapo(req, res, diapoMode === '1' ? 'list' : diapoMode, url);

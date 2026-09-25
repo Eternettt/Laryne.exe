@@ -267,10 +267,19 @@ async function stringzMigrateLegacyDiapo() {
 
 /* ==========================================================================
    Ateliers (workshops) — gérés depuis admin.html, affichés sur workshop.html
+   ==========================================================================
+   La liste est enregistrée SUR LE SERVEUR (base de données, via
+   /api/products?workshops=...) : c'est la même pour tous les visiteurs, et
+   l'admin la modifie depuis admin.html. Rien n'est plus stocké dans le
+   localStorage (ça ne fonctionnait que dans le navigateur qui avait fait la
+   modification) — même principe que le diaporama.
    ========================================================================== */
 
-const STRINGZ_WORKSHOPS_KEY = 'stringzWorkshopsV1';
+// Ancienne clé localStorage (avant le passage au serveur). Gardée uniquement
+// pour nettoyer les navigateurs et récupérer d'éventuels ateliers créés par l'admin.
+const STRINGZ_WORKSHOPS_LEGACY_KEY = 'stringzWorkshopsV1';
 
+// Ateliers utilisés tant que l'admin n'a rien enregistré sur le serveur.
 const STRINGZ_DEFAULT_WORKSHOPS = [
   {
     id: 'upcycling-2026-09-06',
@@ -293,34 +302,60 @@ const STRINGZ_DEFAULT_WORKSHOPS = [
   }
 ];
 
-// ---- Charge les ateliers (localStorage si présent, sinon valeurs par défaut) ----
-// NB: contrairement aux produits, un tableau VIDE est une valeur valide ici
-// (ça veut dire "l'admin a supprimé tous les ateliers"), donc pas de retour
-// aux valeurs par défaut dans ce cas.
-function stringzLoadWorkshops() {
-  try {
-    const raw = localStorage.getItem(STRINGZ_WORKSHOPS_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed;
-    }
-  } catch (e) { /* localStorage indisponible ou données corrompues */ }
-
-  const defaults = JSON.parse(JSON.stringify(STRINGZ_DEFAULT_WORKSHOPS));
-  stringzSaveWorkshops(defaults);
-  return defaults;
+// ---- Récupère la liste depuis le serveur (public) ----
+// Renvoie { workshops, configured } : configured = false tant que l'admin n'a rien
+// enregistré (ou si le serveur est injoignable) → ateliers par défaut.
+async function stringzFetchWorkshops() {
+  const { ok, data } = await stringzApiFetch('/api/products?workshops=1', { cache: 'no-store' });
+  if (ok && Array.isArray(data.workshops)) {
+    return { workshops: data.workshops, configured: true };
+  }
+  return { workshops: JSON.parse(JSON.stringify(STRINGZ_DEFAULT_WORKSHOPS)), configured: false };
 }
 
-// ---- Sauvegarde les ateliers : visible instantanément sur les autres pages ----
-function stringzSaveWorkshops(workshops) {
-  try {
-    localStorage.setItem(STRINGZ_WORKSHOPS_KEY, JSON.stringify(workshops));
-  } catch (e) { /* quota dépassé, etc. */ }
+// ---- Admin : enregistre la liste (remplace la précédente pour tous les visiteurs) ----
+// NB : un tableau VIDE est une valeur valide ("l'admin a supprimé tous les ateliers").
+async function stringzAdminSaveWorkshops(workshops) {
+  return stringzApiFetch('/api/products?workshops=1', { method: 'PUT', body: { workshops } });
 }
 
-// ---- Prévient les autres onglets/pages ouverts en même temps ----
-function stringzOnWorkshopsChanged(callback) {
-  window.addEventListener('storage', (e) => {
-    if (e.key === STRINGZ_WORKSHOPS_KEY) callback();
-  });
+// ---- Ancien stockage localStorage : lecture, nettoyage, récupération ----
+function stringzReadLegacyWorkshops() {
+  try {
+    const raw = localStorage.getItem(STRINGZ_WORKSHOPS_LEGACY_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    return Array.isArray(parsed) ? parsed : null;
+  } catch (e) { return null; }
+}
+
+function stringzClearLegacyWorkshops() {
+  try { localStorage.removeItem(STRINGZ_WORKSHOPS_LEGACY_KEY); } catch (e) { /* localStorage indisponible */ }
+}
+
+function stringzLegacyWorkshopsIsDefault(legacy) {
+  return JSON.stringify(legacy) === JSON.stringify(STRINGZ_DEFAULT_WORKSHOPS);
+}
+
+// Pages publiques : supprime l'ancienne liste "figée" des navigateurs (ateliers par
+// défaut copiés dans le localStorage de chaque visiteur). On la CONSERVE si elle
+// diffère des valeurs par défaut : ce sont peut-être de vrais ateliers de l'admin, pas
+// encore récupérés (voir stringzMigrateLegacyWorkshops, appelée depuis admin.html).
+function stringzCleanupLegacyWorkshops() {
+  const legacy = stringzReadLegacyWorkshops();
+  if (legacy && stringzLegacyWorkshopsIsDefault(legacy)) stringzClearLegacyWorkshops();
+}
+
+// Admin : envoie au serveur les ateliers qu'il avait créés/modifiés avant ce changement
+// (ils n'existaient que dans ce navigateur), puis supprime l'ancien stockage.
+// Renvoie true si des ateliers ont réellement été récupérés, false sinon.
+async function stringzMigrateLegacyWorkshops() {
+  const legacy = stringzReadLegacyWorkshops();
+  if (!legacy || stringzLegacyWorkshopsIsDefault(legacy)) {
+    stringzClearLegacyWorkshops();
+    return false;
+  }
+  const saved = await stringzAdminSaveWorkshops(legacy);
+  if (!saved.ok) throw new Error((saved.data && saved.data.error) || 'Enregistrement impossible.');
+  stringzClearLegacyWorkshops();
+  return true;
 }
