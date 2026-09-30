@@ -184,7 +184,10 @@
   #sent-message.show { display: block; }
   #sent-message .big-icon { font-size: 40px; margin-bottom: 10px; }
   #sent-message h3 { color: #5a1a38; margin-bottom: 8px; }
-  #sent-message p { font-size: 13px; color: #9a5c78; }
+  #sent-message p { font-size: 13px; color: #9a5c78; margin-bottom: 10px; line-height: 1.5; }
+  #sent-message a { color: #7a2350; font-weight: bold; }
+  #sent-message textarea { width: 100%; min-height: 110px; margin: 6px 0 12px; padding: 10px; border: 1px solid #ea8fb8; border-radius: 6px; font-size: 13px; font-family: inherit; color: #4a1a30; background: #fff; text-align: left; }
+  #sent-message .submit-btn { margin-bottom: 8px; }
 
   #toast {
     position: fixed;
@@ -229,7 +232,7 @@
       <div class="info-item">
         <span class="icon">📧</span>
         <div>
-          <a href="mailto:contact@laryne.exe">contact@laryne.exe</a>
+          <a href="mailto:laural1dupre@gmail.com" id="contact-address-link">laural1dupre@gmail.com</a>
           <span class="sub">Réponse sous 24 à 48h</span>
         </div>
       </div>
@@ -295,8 +298,13 @@
 
       <div id="sent-message">
         <div class="big-icon">💌</div>
-        <h3>Message envoyé !</h3>
-        <p>Merci, on te répond très vite.</p>
+        <h3>Ton message est prêt, mais pas encore envoyé</h3>
+        <p>Ta messagerie s'ouvre avec ton message déjà rédigé : appuie sur « Envoyer » dans ton application mail pour qu'il parte vraiment.</p>
+        <p id="sent-long-note" style="display:none;">Ton message est long : il est peut-être tronqué dans ta messagerie. Utilise « Copier le message » pour le coller en entier.</p>
+        <p>Rien ne s'est ouvert ? Écris-nous directement à <a href="mailto:laural1dupre@gmail.com">laural1dupre@gmail.com</a> en collant le message ci-dessous.</p>
+        <textarea id="draft-text" readonly></textarea>
+        <button type="button" class="submit-btn" onclick="copyDraft()">Copier le message</button>
+        <button type="button" class="submit-btn" onclick="editDraft()">Modifier mon message</button>
       </div>
     </div>
 
@@ -306,6 +314,28 @@
 <div id="toast"></div>
 
 <script>
+  // Adresse de contact publique du site (celle des CGV, de la page livraison et de la confidentialité).
+  const CONTACT_EMAIL = 'laural1dupre@gmail.com';
+  const MAILTO_MAX_LENGTH = 1800;
+
+  function copyDraft() {
+    const area = document.getElementById('draft-text');
+    const done = () => showToast('Message copié ✓');
+    const fail = () => { area.focus(); area.select(); showToast('Copie automatique impossible : sélectionne le texte et copie-le.', true); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(area.value).then(done, () => {
+        try { area.focus(); area.select(); document.execCommand('copy') ? done() : fail(); } catch (e) { fail(); }
+      });
+    } else {
+      try { area.focus(); area.select(); document.execCommand('copy') ? done() : fail(); } catch (e) { fail(); }
+    }
+  }
+
+  function editDraft() {
+    document.getElementById('sent-message').classList.remove('show');
+    document.getElementById('contact-form').style.display = '';
+  }
+
   function setInvalid(fieldId, invalid) {
     document.getElementById(fieldId).classList.toggle('invalid', invalid);
   }
@@ -346,13 +376,11 @@
       return false;
     }
 
-    // ⚠️ Il n'y a pas de vrai serveur d'envoi de messages sur ce site pour
-    // l'instant : auparavant, ce formulaire affichait "Message envoyé !"
-    // sans que le message parte réellement nulle part (il était juste
-    // perdu). En attendant une vraie intégration (ex. service d'emailing
-    // transactionnel côté serveur), on ouvre la messagerie de la personne
-    // avec le message pré-rempli, comme sur la page "Lettre de la culotte
-        // légère" — au moins le message part vraiment quelque part.
+    // Ce site n'a pas de serveur d'envoi de messages : le formulaire prépare un
+    // e-mail dans la messagerie du visiteur (mailto:). Le navigateur ne peut PAS
+    // savoir si le message est ensuite réellement envoyé, donc on n'affiche
+    // jamais « envoyé » : on dit que le message est prêt et qu'il reste à
+    // l'envoyer depuis sa messagerie, avec un plan B (adresse + copie du texte).
     const subjectLabels = {
       commande: 'Question sur une commande',
       perso: 'Commande personnalisée',
@@ -360,17 +388,22 @@
       partenariat: 'Partenariat',
       autre: 'Autre',
     };
-    const mailSubject = encodeURIComponent(`[Contact site] ${subjectLabels[subject] || subject}`);
-    const mailBody = encodeURIComponent(
-      `Nom : ${name}\nEmail : ${email}\n\n${message}`
-    );
+    const mailSubject = `[Contact site] ${subjectLabels[subject] || subject}`;
+    const mailBody = `Nom : ${name}\nEmail : ${email}\n\n${message}`;
+    const fullUrl = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(mailSubject)}&body=${encodeURIComponent(mailBody)}`;
 
+    // Les adresses mailto: trop longues sont tronquées ou refusées par certaines messageries.
+    const tooLong = fullUrl.length > MAILTO_MAX_LENGTH;
+    const url = tooLong
+      ? `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(mailSubject)}`
+      : fullUrl;
+
+    document.getElementById('draft-text').value = `À : ${CONTACT_EMAIL}\nObjet : ${mailSubject}\n\n${mailBody}`;
+    document.getElementById('sent-long-note').style.display = tooLong ? 'block' : 'none';
     document.getElementById('contact-form').style.display = 'none';
     document.getElementById('sent-message').classList.add('show');
-    showToast('Ta messagerie va s\'ouvrir pour finaliser l\'envoi ✉️');
-    setTimeout(() => {
-      window.location.href = `mailto:contact@laryne.exe?subject=${mailSubject}&body=${mailBody}`;
-    }, 500);
+    showToast('Ta messagerie s\'ouvre : pense à appuyer sur « Envoyer » ✉️');
+    window.location.href = url;
     return false;
   }
 </script>

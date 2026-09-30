@@ -319,6 +319,8 @@
   }
   #prep-time-estimate .prep-days { font-size: 20px; font-weight: bold; color: #7a2350; display: block; margin-bottom: 2px; }
   #payment-btn:disabled { opacity: 0.6; cursor: wait; }
+  #perso-ship-choice { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 0 auto 14px; font-size: 14px; color: #7a2350; }
+  #perso-ship-choice select { padding: 6px 8px; border: 1px solid #ea8fb8; border-radius: 6px; background: #fff; color: #7a2350; font-size: 13px; }
 
   /* ================= FOND "CUISINE" DERRIÈRE LA DS ================= */
   #kitchen-bg {
@@ -581,6 +583,13 @@
         <div id="oven-result">
           <div class="panel-title">🎉 C'est prêt !</div>
           <div id="prep-time-estimate"></div>
+          <div id="perso-ship-choice">
+            <label for="perso-ship-destination">Livraison en</label>
+            <select id="perso-ship-destination">
+              <option value="FR">France</option>
+              <option value="INTL">Étranger (Europe, USA, Canada)</option>
+            </select>
+          </div>
           <button class="btn" id="payment-btn" onclick="goToPayment()">💳 Passer au paiement</button>
         </div>
       </section>
@@ -1037,11 +1046,16 @@ async function goToPayment() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        // Le serveur ignore tout prix : il ne lit que ces choix et recalcule le montant.
+        destination: document.getElementById('perso-ship-destination').value,
         customOrder: {
           shapeId: order.shape,
           motifId: order.motif ? order.motif.id : null,
-          decorIds: (order.decor || []).map(d => d.id),
-          extraIds: (order.extras || []).map(e => e.id),
+          color: order.color ? { code: order.color.code, name: order.color.name, hex: order.color.hex } : null,
+          // une entrée par décoration posée, avec sa couleur et sa position (pour la fabrication)
+          decor: (order.decor || []).map(d => ({ id: d.id, color: d.color, side: d.side, x: d.x, y: d.y })),
+          // order.extras est DÉJÀ une liste d'identifiants (ex. ['piercing', 'special'])
+          extraIds: (order.extras || []).slice(),
           specialRequest: order.specialRequest || '',
           size: order.size || '',
         },

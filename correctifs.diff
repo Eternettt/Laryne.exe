@@ -1,0 +1,595 @@
+--- avant/custom-order-pricing.js	2026-09-29 20:04:09.471516000 +0000
++++ apres/custom-order-pricing.js	2026-09-30 06:39:52.722708714 +0000
+@@ -47,46 +47,142 @@
+   special: 8,
+ };
+ 
++// ---- Listes de référence côté serveur (source de vérité pour la validation) ----
++const MOTIF_IDS = ['pois', 'rayures', 'leopard'];
++const SIZES = ['XS', 'S', 'M', 'L', 'XL'];
++const COLOR_HEX_RE = /^#[0-9a-fA-F]{6}$/;
++const MAX_DECOR_ITEMS = 50;
++const MAX_SPECIAL_REQUEST = 1000;
++const MAX_COLOR_NAME = 60;
++
++// Erreur de validation dont le message peut être montré au client (→ HTTP 400).
++function invalid(message) {
++  const err = new Error(message);
++  err.isValidation = true;
++  return err;
++}
++
++function hasOwn(obj, key) {
++  return typeof key === 'string' && Object.prototype.hasOwnProperty.call(obj, key);
++}
++
++// Nettoie un texte libre : chaîne, sans caractères de contrôle, tronquée.
++function cleanText(value, maxLen) {
++  if (typeof value !== 'string') return '';
++  return value.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '').trim().slice(0, maxLen);
++}
++
++function toPercent(v) {
++  const n = Number(v);
++  if (!Number.isFinite(n)) return 50;
++  return Math.round(Math.max(0, Math.min(100, n)) * 10) / 10;
++}
++
+ // ---- Recalcule le prix total (en centimes) d'une création perso à partir
+-// des identifiants choisis. Lève une erreur si la forme est invalide.
++// des identifiants choisis. Lève une erreur (message affichable au client) si
++// une valeur est invalide : on préfère refuser plutôt que d'ignorer en
++// silence un identifiant inconnu (ce qui facturerait moins que ce qui est
++// fabriqué). Ne lit JAMAIS un prix envoyé par le navigateur.
++//
++// Renvoie aussi "fabrication" : la fiche de fabrication reconstruite par le
++// serveur, uniquement à partir de valeurs validées. C'est CET objet (et non le
++// JSON brut du navigateur) qui est enregistré avec la commande.
+ function computeCustomOrderPrice(customOrder) {
+-  const shapeId = customOrder && customOrder.shapeId;
+-  const basePrice = BASE_PRICE[shapeId];
+-  if (!basePrice) {
+-    throw new Error('Forme de sous-vêtement invalide.');
++  const co = customOrder && typeof customOrder === 'object' ? customOrder : {};
++
++  const shapeId = co.shapeId;
++  if (!hasOwn(BASE_PRICE, shapeId)) {
++    throw invalid('Forme de sous-vêtement invalide.');
++  }
++  const size = co.size;
++  if (typeof size !== 'string' || !SIZES.includes(size)) {
++    throw invalid('Taille invalide.');
+   }
+ 
+-  let total = basePrice;
+-  const parts = [`${SHAPE_NAMES[shapeId]} (taille ${customOrder.size || '-'})`];
++  let total = BASE_PRICE[shapeId];
++  const parts = [`${SHAPE_NAMES[shapeId]} (taille ${size})`];
+ 
+-  if (customOrder.motifId) {
++  // ---- Motif ----
++  let motifId = null;
++  if (co.motifId !== null && co.motifId !== undefined && co.motifId !== '') {
++    if (typeof co.motifId !== 'string' || !MOTIF_IDS.includes(co.motifId)) {
++      throw invalid('Motif invalide.');
++    }
++    motifId = co.motifId;
+     total += MOTIF_PRICE;
+     parts.push('motif');
+   }
+ 
+-  (customOrder.decorIds || []).forEach((id) => {
+-    const price = DECOR_PRICES[id];
+-    if (price) {
+-      total += price;
+-      parts.push(id);
++  // ---- Décorations : une entrée = une décoration posée (doublons autorisés, chacune est facturée) ----
++  const decorInput = co.decor !== undefined ? co.decor : co.decorIds;
++  if (decorInput !== undefined && decorInput !== null && !Array.isArray(decorInput)) {
++    throw invalid('Décorations invalides.');
++  }
++  const decorList = Array.isArray(decorInput) ? decorInput : [];
++  if (decorList.length > MAX_DECOR_ITEMS) {
++    throw invalid(`Trop de décorations (maximum ${MAX_DECOR_ITEMS}).`);
++  }
++  const decor = decorList.map((d) => {
++    // Accepte un simple identifiant (ancien format) ou un objet { id, color, side, x, y }.
++    const isObj = d && typeof d === 'object';
++    const id = isObj ? d.id : d;
++    if (typeof id !== 'string' || !hasOwn(DECOR_PRICES, id)) {
++      throw invalid('Décoration invalide.');
+     }
++    total += DECOR_PRICES[id];
++    parts.push(id);
++    const color = isObj && typeof d.color === 'string' && COLOR_HEX_RE.test(d.color) ? d.color.toLowerCase() : null;
++    const side = isObj && d.side === 'back' ? 'back' : 'front';
++    return { id, color, side, x: isObj ? toPercent(d.x) : null, y: isObj ? toPercent(d.y) : null };
+   });
+ 
+-  (customOrder.extraIds || []).forEach((id) => {
+-    const price = EXTRA_PRICES[id];
+-    if (price) {
+-      total += price;
+-      parts.push(id);
++  // ---- Extras : chaque extra ne peut être choisi qu'une fois ----
++  const extraInput = co.extraIds;
++  if (extraInput !== undefined && extraInput !== null && !Array.isArray(extraInput)) {
++    throw invalid('Options invalides.');
++  }
++  const specialRequest = cleanText(co.specialRequest, MAX_SPECIAL_REQUEST);
++  const extras = [];
++  (Array.isArray(extraInput) ? extraInput : []).forEach((id) => {
++    if (typeof id !== 'string' || !hasOwn(EXTRA_PRICES, id)) {
++      throw invalid('Option invalide.');
+     }
++    if (extras.includes(id)) return; // doublon : ignoré, facturé une seule fois
++    extras.push(id);
++    // Comme sur l'écran de récapitulatif : la « demande particulière » n'est
++    // facturée que si une demande a réellement été écrite.
++    if (id === 'special' && !specialRequest) return;
++    total += EXTRA_PRICES[id];
++    parts.push(id);
+   });
+ 
++  // ---- Couleur (nuancier) : informative pour la fabrication, sans effet sur le prix ----
++  let color = null;
++  if (co.color && typeof co.color === 'object') {
++    const hex = typeof co.color.hex === 'string' && COLOR_HEX_RE.test(co.color.hex) ? co.color.hex.toLowerCase() : null;
++    const name = cleanText(co.color.name, MAX_COLOR_NAME);
++    const code = cleanText(co.color.code, MAX_COLOR_NAME);
++    if (hex || name) color = { name, code, hex };
++  }
++
+   const totalCents = Math.round(total * 100);
+-  const name = `Création perso — ${parts.join(', ')}`;
+-  return { totalCents, name };
++  const name = `Création perso — ${parts.join(', ')}`.slice(0, 250);
++  const fabrication = {
++    shapeId,
++    size,
++    motifId,
++    color,
++    decor,
++    extraIds: extras,
++    specialRequest,
++  };
++  return { totalCents, name, fabrication };
+ }
+ 
+ module.exports = {
+   computeCustomOrderPrice,
++  MOTIF_IDS,
++  SIZES,
+   BASE_PRICE,
+   SHAPE_NAMES,
+   MOTIF_PRICE,
+--- avant/create-checkout-session.js	2026-09-29 20:04:30.872133000 +0000
++++ apres/create-checkout-session.js	2026-09-30 06:39:52.724137732 +0000
+@@ -17,6 +17,27 @@
+ 
+ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+ 
++// ---- Ateliers : l'acompte est lu ici, jamais fourni par le navigateur ----
++// Liste enregistrée par l'admin (table site_settings, clé "workshops", voir
++// api/products.js). Tant que l'admin n'a rien enregistré, le site affiche
++// l'atelier par défaut de shared-data.js (STRINGZ_DEFAULT_WORKSHOPS) : on en
++// garde ici la même copie (id + acompte), sinon il serait impossible à réserver.
++const DEFAULT_WORKSHOPS = [
++  { id: 'upcycling-2026-09-06', title: 'Atelier upcycling', dateLabel: '6 septembre 2026', deposit: 20 },
++];
++
++async function findWorkshop(workshopId) {
++  if (typeof workshopId !== 'string' || !/^[a-z0-9-]{1,120}$/.test(workshopId)) return null;
++  const { rows } = await sql`select value from site_settings where key = 'workshops'`;
++  const list = rows.length && Array.isArray(rows[0].value) ? rows[0].value : DEFAULT_WORKSHOPS;
++  return list.find((w) => w && w.id === workshopId) || null;
++}
++
++function cleanShortText(value, maxLen) {
++  if (typeof value !== 'string') return '';
++  return value.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, maxLen);
++}
++
+ // Pays livrés. FR = tarif "France", tous les autres = tarif "étranger".
+ // Élargis cette liste si tu livres ailleurs (c'est la seule chose à changer,
+ // pense aussi à mettre à jour le libellé de l'option "Étranger" dans boutique.html).
+@@ -34,8 +55,10 @@
+ // boutique.html) : on ne passe alors à Stripe que le bon tarif, et
+ // shipping_address_collection n'autorise que les pays de cette zone — Stripe
+ // refuse lui-même une adresse hors zone.
+-// Sans choix de destination (ex. page de commande perso), on retombe sur les
+-// deux tarifs, le client choisit celui qui correspond à son pays.
++// La destination est OBLIGATOIRE et validée côté serveur ('FR' ou 'INTL') pour
++// tout envoi physique (panier ET création perso) : sans elle, Stripe proposerait
++// les deux tarifs et un client à l'étranger pourrait choisir le tarif France.
++const VALID_DESTINATIONS = ['FR', 'INTL'];
+ function buildShippingBlock(quantity, destination) {
+   const rates = getShippingRates(quantity);
+   const franceOption = {
+@@ -65,10 +88,8 @@
+       shipping_options: [abroadOption],
+     };
+   }
+-  return {
+-    shipping_address_collection: { allowed_countries: ALL_SHIPPABLE_COUNTRIES },
+-    shipping_options: [franceOption, abroadOption],
+-  };
++  // Ne devrait jamais arriver (la destination est validée avant l'appel).
++  throw new Error('Destination de livraison invalide.');
+ }
+ 
+ module.exports = async (req, res) => {
+@@ -89,6 +110,13 @@
+     body.cart = Object.entries(body.cart).map(([id, qty]) => ({ productId: Number(id), qty }));
+   }
+ 
++  // Destination de livraison : validée avant toute lecture en base ou appel Stripe.
++  const needsShipping = Array.isArray(body.cart) || !!body.customOrder;
++  if (needsShipping && !VALID_DESTINATIONS.includes(body.destination)) {
++    res.status(400).json({ error: 'Choisis une destination de livraison (France ou étranger).' });
++    return;
++  }
++
+   try {
+     const lineItems = [];
+     const orderItems = [];
+@@ -159,32 +187,57 @@
+ 
+     // ---- Cas 2 : création personnalisée (commande_perso.html) ----
+     } else if (body.customOrder) {
+-      const { totalCents: t, name } = computeCustomOrderPrice(body.customOrder);
++      let priced;
++      try {
++        priced = computeCustomOrderPrice(body.customOrder);
++      } catch (pricingErr) {
++        if (pricingErr && pricingErr.isValidation) {
++          res.status(400).json({ error: pricingErr.message });
++          return;
++        }
++        throw pricingErr;
++      }
++      const { totalCents: t, name, fabrication } = priced;
+       totalCents = t;
+       shippingQty = 1;
+       lineItems.push({
+         price_data: { currency: 'eur', product_data: { name }, unit_amount: t },
+         quantity: 1,
+       });
+-      orderItems.push({ name, qty: 1, unitPrice: t / 100, customOrder: body.customOrder });
+-
+-    // ---- Cas 3 : article libre (ex. acompte atelier, workshop.html) ----
+-    } else if (body.customItem && body.customItem.name) {
+-      const cleanAmount = Math.max(50, Math.min(500000, Math.round(Number(body.customItem.unitAmount) || 0)));
+-      if (!cleanAmount) {
+-        res.status(400).json({ error: 'Montant invalide.' });
++      // On enregistre la fiche de fabrication reconstruite par le serveur (valeurs
++      // validées, celles qui ont servi au calcul du prix), jamais le JSON brut du navigateur.
++      orderItems.push({ name, qty: 1, unitPrice: t / 100, customOrder: fabrication });
++
++    // ---- Cas 3 : acompte d'atelier (workshop.html) ----
++    // Le navigateur n'envoie QUE l'identifiant de l'atelier et les coordonnées du
++    // participant. Le montant de l'acompte, le titre et la date viennent de la
++    // liste des ateliers enregistrée côté serveur. (L'ancien format "customItem"
++    // avec un montant fourni par le client n'est plus accepté.)
++    } else if (body.workshopBooking && typeof body.workshopBooking === 'object') {
++      const wb = body.workshopBooking;
++      const workshop = await findWorkshop(wb.workshopId);
++      if (!workshop) {
++        res.status(400).json({ error: 'Atelier introuvable (il a peut-être été supprimé).' });
++        return;
++      }
++      const depositCents = Math.round(Number(workshop.deposit) * 100);
++      if (!Number.isFinite(depositCents) || depositCents < 50 || depositCents > 500000) {
++        res.status(400).json({ error: "Cet atelier n'a pas d'acompte payable en ligne." });
++        return;
++      }
++      const participantName = cleanShortText(wb.participantName, 100);
++      const participantContact = cleanShortText(wb.contact, 100);
++      if (!participantName || !participantContact) {
++        res.status(400).json({ error: 'Nom et moyen de contact requis.' });
+         return;
+       }
+-      totalCents = cleanAmount;
++      const itemName = `${workshop.title} - ${workshop.dateLabel} (acompte) — ${participantName} (${participantContact})`.slice(0, 250);
++      totalCents = depositCents;
+       lineItems.push({
+-        price_data: {
+-          currency: 'eur',
+-          product_data: { name: String(body.customItem.name).slice(0, 250) },
+-          unit_amount: cleanAmount,
+-        },
++        price_data: { currency: 'eur', product_data: { name: itemName }, unit_amount: depositCents },
+         quantity: 1,
+       });
+-      orderItems.push({ name: body.customItem.name, qty: 1, unitPrice: cleanAmount / 100 });
++      orderItems.push({ name: itemName, qty: 1, unitPrice: depositCents / 100, workshopId: workshop.id });
+     } else {
+       res.status(400).json({ error: 'Requête invalide.' });
+       return;
+@@ -192,7 +245,6 @@
+ 
+     // Adresse + port : uniquement pour les articles physiques (panier, création
+     // perso), pas pour un acompte d'atelier.
+-    const needsShipping = Array.isArray(body.cart) || !!body.customOrder;
+     const shippingBlock = needsShipping ? buildShippingBlock(shippingQty, body.destination) : {};
+ 
+     const checkoutSession = await stripe.checkout.sessions.create({
+--- avant/commande_perso.html	2026-09-29 20:06:18.116235000 +0000
++++ apres/commande_perso.html	2026-09-30 06:39:52.725850619 +0000
+@@ -319,6 +319,8 @@
+   }
+   #prep-time-estimate .prep-days { font-size: 20px; font-weight: bold; color: #7a2350; display: block; margin-bottom: 2px; }
+   #payment-btn:disabled { opacity: 0.6; cursor: wait; }
++  #perso-ship-choice { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 0 auto 14px; font-size: 14px; color: #7a2350; }
++  #perso-ship-choice select { padding: 6px 8px; border: 1px solid #ea8fb8; border-radius: 6px; background: #fff; color: #7a2350; font-size: 13px; }
+ 
+   /* ================= FOND "CUISINE" DERRIÈRE LA DS ================= */
+   #kitchen-bg {
+@@ -581,6 +583,13 @@
+         <div id="oven-result">
+           <div class="panel-title">🎉 C'est prêt !</div>
+           <div id="prep-time-estimate"></div>
++          <div id="perso-ship-choice">
++            <label for="perso-ship-destination">Livraison en</label>
++            <select id="perso-ship-destination">
++              <option value="FR">France</option>
++              <option value="INTL">Étranger (Europe, USA, Canada)</option>
++            </select>
++          </div>
+           <button class="btn" id="payment-btn" onclick="goToPayment()">💳 Passer au paiement</button>
+         </div>
+       </section>
+@@ -1037,11 +1046,16 @@
+       method: 'POST',
+       headers: { 'Content-Type': 'application/json' },
+       body: JSON.stringify({
++        // Le serveur ignore tout prix : il ne lit que ces choix et recalcule le montant.
++        destination: document.getElementById('perso-ship-destination').value,
+         customOrder: {
+           shapeId: order.shape,
+           motifId: order.motif ? order.motif.id : null,
+-          decorIds: (order.decor || []).map(d => d.id),
+-          extraIds: (order.extras || []).map(e => e.id),
++          color: order.color ? { code: order.color.code, name: order.color.name, hex: order.color.hex } : null,
++          // une entrée par décoration posée, avec sa couleur et sa position (pour la fabrication)
++          decor: (order.decor || []).map(d => ({ id: d.id, color: d.color, side: d.side, x: d.x, y: d.y })),
++          // order.extras est DÉJÀ une liste d'identifiants (ex. ['piercing', 'special'])
++          extraIds: (order.extras || []).slice(),
+           specialRequest: order.specialRequest || '',
+           size: order.size || '',
+         },
+--- avant/workshop.html	2026-09-29 20:06:18.142742000 +0000
++++ apres/workshop.html	2026-09-30 06:39:52.727231072 +0000
+@@ -486,9 +486,12 @@
+         method: 'POST',
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify({
+-          customItem: {
+-            name: `${selectedWorkshop.title} - ${selectedWorkshop.dateLabel} (acompte) — ${name} (${contact})`,
+-            unitAmount: Math.round(selectedWorkshop.deposit * 100), // Stripe attend des centimes
++          // Le montant de l'acompte n'est PAS envoyé : le serveur le retrouve à
++          // partir de l'identifiant de l'atelier.
++          workshopBooking: {
++            workshopId: selectedWorkshop.id,
++            participantName: name,
++            contact: contact,
+           },
+         }),
+       });
+--- avant/contact.html	2026-09-29 20:06:18.008256000 +0000
++++ apres/contact.html	2026-09-30 06:39:52.728538485 +0000
+@@ -184,7 +184,10 @@
+   #sent-message.show { display: block; }
+   #sent-message .big-icon { font-size: 40px; margin-bottom: 10px; }
+   #sent-message h3 { color: #5a1a38; margin-bottom: 8px; }
+-  #sent-message p { font-size: 13px; color: #9a5c78; }
++  #sent-message p { font-size: 13px; color: #9a5c78; margin-bottom: 10px; line-height: 1.5; }
++  #sent-message a { color: #7a2350; font-weight: bold; }
++  #sent-message textarea { width: 100%; min-height: 110px; margin: 6px 0 12px; padding: 10px; border: 1px solid #ea8fb8; border-radius: 6px; font-size: 13px; font-family: inherit; color: #4a1a30; background: #fff; text-align: left; }
++  #sent-message .submit-btn { margin-bottom: 8px; }
+ 
+   #toast {
+     position: fixed;
+@@ -229,7 +232,7 @@
+       <div class="info-item">
+         <span class="icon">📧</span>
+         <div>
+-          <a href="mailto:contact@laryne.exe">contact@laryne.exe</a>
++          <a href="mailto:laural1dupre@gmail.com" id="contact-address-link">laural1dupre@gmail.com</a>
+           <span class="sub">Réponse sous 24 à 48h</span>
+         </div>
+       </div>
+@@ -295,8 +298,13 @@
+ 
+       <div id="sent-message">
+         <div class="big-icon">💌</div>
+-        <h3>Message envoyé !</h3>
+-        <p>Merci, on te répond très vite.</p>
++        <h3>Ton message est prêt, mais pas encore envoyé</h3>
++        <p>Ta messagerie s'ouvre avec ton message déjà rédigé : appuie sur « Envoyer » dans ton application mail pour qu'il parte vraiment.</p>
++        <p id="sent-long-note" style="display:none;">Ton message est long : il est peut-être tronqué dans ta messagerie. Utilise « Copier le message » pour le coller en entier.</p>
++        <p>Rien ne s'est ouvert ? Écris-nous directement à <a href="mailto:laural1dupre@gmail.com">laural1dupre@gmail.com</a> en collant le message ci-dessous.</p>
++        <textarea id="draft-text" readonly></textarea>
++        <button type="button" class="submit-btn" onclick="copyDraft()">Copier le message</button>
++        <button type="button" class="submit-btn" onclick="editDraft()">Modifier mon message</button>
+       </div>
+     </div>
+ 
+@@ -306,6 +314,28 @@
+ <div id="toast"></div>
+ 
+ <script>
++  // Adresse de contact publique du site (celle des CGV, de la page livraison et de la confidentialité).
++  const CONTACT_EMAIL = 'laural1dupre@gmail.com';
++  const MAILTO_MAX_LENGTH = 1800;
++
++  function copyDraft() {
++    const area = document.getElementById('draft-text');
++    const done = () => showToast('Message copié ✓');
++    const fail = () => { area.focus(); area.select(); showToast('Copie automatique impossible : sélectionne le texte et copie-le.', true); };
++    if (navigator.clipboard && navigator.clipboard.writeText) {
++      navigator.clipboard.writeText(area.value).then(done, () => {
++        try { area.focus(); area.select(); document.execCommand('copy') ? done() : fail(); } catch (e) { fail(); }
++      });
++    } else {
++      try { area.focus(); area.select(); document.execCommand('copy') ? done() : fail(); } catch (e) { fail(); }
++    }
++  }
++
++  function editDraft() {
++    document.getElementById('sent-message').classList.remove('show');
++    document.getElementById('contact-form').style.display = '';
++  }
++
+   function setInvalid(fieldId, invalid) {
+     document.getElementById(fieldId).classList.toggle('invalid', invalid);
+   }
+@@ -346,13 +376,11 @@
+       return false;
+     }
+ 
+-    // ⚠️ Il n'y a pas de vrai serveur d'envoi de messages sur ce site pour
+-    // l'instant : auparavant, ce formulaire affichait "Message envoyé !"
+-    // sans que le message parte réellement nulle part (il était juste
+-    // perdu). En attendant une vraie intégration (ex. service d'emailing
+-    // transactionnel côté serveur), on ouvre la messagerie de la personne
+-    // avec le message pré-rempli, comme sur la page "Lettre de la culotte
+-        // légère" — au moins le message part vraiment quelque part.
++    // Ce site n'a pas de serveur d'envoi de messages : le formulaire prépare un
++    // e-mail dans la messagerie du visiteur (mailto:). Le navigateur ne peut PAS
++    // savoir si le message est ensuite réellement envoyé, donc on n'affiche
++    // jamais « envoyé » : on dit que le message est prêt et qu'il reste à
++    // l'envoyer depuis sa messagerie, avec un plan B (adresse + copie du texte).
+     const subjectLabels = {
+       commande: 'Question sur une commande',
+       perso: 'Commande personnalisée',
+@@ -360,17 +388,22 @@
+       partenariat: 'Partenariat',
+       autre: 'Autre',
+     };
+-    const mailSubject = encodeURIComponent(`[Contact site] ${subjectLabels[subject] || subject}`);
+-    const mailBody = encodeURIComponent(
+-      `Nom : ${name}\nEmail : ${email}\n\n${message}`
+-    );
++    const mailSubject = `[Contact site] ${subjectLabels[subject] || subject}`;
++    const mailBody = `Nom : ${name}\nEmail : ${email}\n\n${message}`;
++    const fullUrl = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(mailSubject)}&body=${encodeURIComponent(mailBody)}`;
++
++    // Les adresses mailto: trop longues sont tronquées ou refusées par certaines messageries.
++    const tooLong = fullUrl.length > MAILTO_MAX_LENGTH;
++    const url = tooLong
++      ? `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(mailSubject)}`
++      : fullUrl;
+ 
++    document.getElementById('draft-text').value = `À : ${CONTACT_EMAIL}\nObjet : ${mailSubject}\n\n${mailBody}`;
++    document.getElementById('sent-long-note').style.display = tooLong ? 'block' : 'none';
+     document.getElementById('contact-form').style.display = 'none';
+     document.getElementById('sent-message').classList.add('show');
+-    showToast('Ta messagerie va s\'ouvrir pour finaliser l\'envoi ✉️');
+-    setTimeout(() => {
+-      window.location.href = `mailto:contact@laryne.exe?subject=${mailSubject}&body=${mailBody}`;
+-    }, 500);
++    showToast('Ta messagerie s\'ouvre : pense à appuyer sur « Envoyer » ✉️');
++    window.location.href = url;
+     return false;
+   }
+ </script>
+--- avant/admin.html	2026-09-29 20:06:18.160263000 +0000
++++ apres/admin.html	2026-09-30 06:39:52.730058405 +0000
+@@ -370,6 +370,12 @@
+   /* ---- Détail d'une commande (modale) ---- */
+   .od-row { font-size: 14px; margin-bottom: 6px; color: #3a2430; }
+   .od-label { display: inline-block; min-width: 90px; font-weight: bold; color: #7a2350; }
++  .fab-box { border: 1px dashed #c2477a; background: #fff7fb; border-radius: 6px; padding: 8px 10px; margin: 8px 0 4px; font-size: 13px; color: #3a2430; }
++  .fab-box .fab-title { font-weight: bold; color: #7a2350; margin-bottom: 4px; }
++  .fab-box ul { margin: 2px 0 4px 18px; padding: 0; }
++  .fab-box .fab-request { white-space: pre-wrap; word-break: break-word; background: #fff; border: 1px solid #ea8fb8; border-radius: 4px; padding: 6px 8px; margin-top: 2px; }
++  .fab-swatch { display: inline-block; width: 12px; height: 12px; border: 1px solid #888; vertical-align: middle; margin: 0 2px; }
++  .order-summary .ord-fab-line { color: #7a2350; font-size: 12px; }
+   .od-section-title { font-size: 13px; font-weight: bold; color: #7a2350; text-transform: uppercase; letter-spacing: 0.5px; margin: 16px 0 6px; }
+   .od-address {
+     font-size: 14px;
+@@ -1190,6 +1196,67 @@
+   // liste. Un clic ailleurs, ou 4 secondes sans confirmer, annule l'état.
+   let orderConfirmPending = null;
+ 
++  // ---- Fiche de fabrication d'une création personnalisée ----
++  // Lit items[].customOrder tel qu'enregistré par le serveur (voir
++  // api/create-checkout-session.js). Tolère les anciennes commandes (decorIds,
++  // pas de couleur) et n'affiche jamais de HTML brut : tout est échappé.
++  const FAB_SHAPES = { string: 'String', culotte: 'Culotte classique', boxer: 'Boxer', bresilienne: 'Brésilienne', 'taille-haute': 'Taille haute' };
++  const FAB_MOTIFS = { pois: 'Pois', rayures: 'Rayures', leopard: 'Léopard' };
++  const FAB_DECOR = { fleur: 'Fleur brodée', noeud: 'Nœud', etoile: 'Étoile', coeur: 'Cœur', initiales: 'Initiales brodées', dentelle: 'Liseré dentelle', papillon: 'Papillon', lune: 'Lune' };
++  const FAB_EXTRAS = { piercing: 'Piercing déco', sequins: 'Séquins', rubans: 'Rubans', clous: 'Clous / studs', special: 'Demande particulière' };
++  function fabLabel(map, id) { return Object.prototype.hasOwnProperty.call(map, id) ? map[id] : String(id); }
++  function fabSwatch(hex) {
++    return /^#[0-9a-fA-F]{6}$/.test(hex || '') ? `<span class="fab-swatch" style="background:${hex};"></span>` : '';
++  }
++  function fabPct(v) { const n = Number(v); return Number.isFinite(n) ? Math.round(n) + ' %' : '?'; }
++
++  function fabricationHtml(co) {
++    if (!co || typeof co !== 'object') return '';
++    const esc = stringzEscapeHtml;
++    const rows = [];
++    rows.push(`<div><b>Forme :</b> ${esc(fabLabel(FAB_SHAPES, co.shapeId))} — <b>taille :</b> ${esc(co.size || 'non précisée')}</div>`);
++    if (co.color && (co.color.name || co.color.hex)) {
++      rows.push(`<div><b>Couleur :</b> ${fabSwatch(co.color.hex)} ${esc(co.color.name || '')}${co.color.code ? ' (' + esc(co.color.code) + ')' : ''}${co.color.hex ? ' <small>' + esc(co.color.hex) + '</small>' : ''}</div>`);
++    } else {
++      rows.push(`<div><b>Couleur :</b> <em>non enregistrée (commande passée avant la mise à jour)</em></div>`);
++    }
++    rows.push(`<div><b>Motif :</b> ${co.motifId ? esc(fabLabel(FAB_MOTIFS, co.motifId)) : 'aucun'}</div>`);
++
++    // Nouveau format : co.decor = [{ id, color, side, x, y }] ; ancien format : co.decorIds = ['fleur', …]
++    const decor = Array.isArray(co.decor) ? co.decor : (Array.isArray(co.decorIds) ? co.decorIds.map(id => ({ id })) : []);
++    if (decor.length) {
++      rows.push(`<div><b>Décorations (${decor.length}) :</b><ul>${decor.map(d => {
++        const pos = (d.side || d.x != null)
++          ? ` — ${d.side === 'back' ? 'dos' : 'devant'}, ${fabPct(d.x)} depuis la gauche, ${fabPct(d.y)} depuis le haut`
++          : '';
++        return `<li>${esc(fabLabel(FAB_DECOR, d.id))}${d.color ? ' ' + fabSwatch(d.color) + ' <small>' + esc(d.color) + '</small>' : ''}${pos}</li>`;
++      }).join('')}</ul></div>`);
++    } else {
++      rows.push(`<div><b>Décorations :</b> aucune</div>`);
++    }
++
++    const extras = Array.isArray(co.extraIds) ? co.extraIds : [];
++    rows.push(`<div><b>Options :</b> ${extras.length ? extras.map(id => esc(fabLabel(FAB_EXTRAS, id))).join(', ') : 'aucune'}</div>`);
++    if (co.specialRequest) {
++      rows.push(`<div><b>Demande spéciale :</b><div class="fab-request">${esc(co.specialRequest)}</div></div>`);
++    }
++    return `<div class="fab-box"><div class="fab-title">🧵 Fiche de fabrication</div>${rows.join('')}</div>`;
++  }
++
++  // Résumé d'une ligne pour la liste des commandes.
++  function fabricationSummary(co) {
++    if (!co || typeof co !== 'object') return '';
++    const esc = stringzEscapeHtml;
++    const bits = [];
++    if (co.color && co.color.name) bits.push('couleur ' + esc(co.color.name));
++    if (co.motifId) bits.push('motif ' + esc(fabLabel(FAB_MOTIFS, co.motifId)));
++    const nDecor = Array.isArray(co.decor) ? co.decor.length : (Array.isArray(co.decorIds) ? co.decorIds.length : 0);
++    if (nDecor) bits.push(nDecor + ' déco');
++    if (Array.isArray(co.extraIds) && co.extraIds.length) bits.push(co.extraIds.length + ' option(s)');
++    if (co.specialRequest) bits.push('📝 demande spéciale');
++    return bits.length ? `<div class="ord-fab-line">🧵 ${bits.join(' · ')}</div>` : '';
++  }
++
+   function formatElapsed(dateStr) {
+     const diffMs = Date.now() - new Date(dateStr).getTime();
+     const mins = Math.floor(diffMs / 60000);
+@@ -1263,6 +1330,7 @@
+               <div class="ord-item-line">
+                 ${it.qty}× ${stringzEscapeHtml(it.name)}${details ? ` <span class="ord-item-details">(${stringzEscapeHtml(details)})</span>` : ''}
+                 ${it.remark ? `<br><em class="ord-item-remark">📝 ${stringzEscapeHtml(it.remark)}</em>` : ''}
++                ${it.customOrder ? fabricationSummary(it.customOrder) : ''}
+               </div>
+             `;
+           })
+@@ -1336,6 +1404,7 @@
+         <thead><tr><th>Article</th><th>Type</th><th>Taille</th><th>Qté</th><th>Prix unitaire</th><th>Sous-total</th></tr></thead>
+         <tbody>${itemsRows}</tbody>
+       </table>
++      ${(o.items || []).filter(it => it.customOrder).map(it => fabricationHtml(it.customOrder)).join('')}
+       ${o.shippingCost ? `<div class="od-row" style="margin-top:10px;"><span class="od-label">Port</span> ${o.shippingCost.toFixed(2).replace('.', ',')} €</div>` : ""}
+       <div class="od-total">Total payé : ${o.total.toFixed(2).replace('.', ',')} €</div>
+ 

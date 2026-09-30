@@ -370,6 +370,12 @@
   /* ---- Détail d'une commande (modale) ---- */
   .od-row { font-size: 14px; margin-bottom: 6px; color: #3a2430; }
   .od-label { display: inline-block; min-width: 90px; font-weight: bold; color: #7a2350; }
+  .fab-box { border: 1px dashed #c2477a; background: #fff7fb; border-radius: 6px; padding: 8px 10px; margin: 8px 0 4px; font-size: 13px; color: #3a2430; }
+  .fab-box .fab-title { font-weight: bold; color: #7a2350; margin-bottom: 4px; }
+  .fab-box ul { margin: 2px 0 4px 18px; padding: 0; }
+  .fab-box .fab-request { white-space: pre-wrap; word-break: break-word; background: #fff; border: 1px solid #ea8fb8; border-radius: 4px; padding: 6px 8px; margin-top: 2px; }
+  .fab-swatch { display: inline-block; width: 12px; height: 12px; border: 1px solid #888; vertical-align: middle; margin: 0 2px; }
+  .order-summary .ord-fab-line { color: #7a2350; font-size: 12px; }
   .od-section-title { font-size: 13px; font-weight: bold; color: #7a2350; text-transform: uppercase; letter-spacing: 0.5px; margin: 16px 0 6px; }
   .od-address {
     font-size: 14px;
@@ -1190,6 +1196,67 @@
   // liste. Un clic ailleurs, ou 4 secondes sans confirmer, annule l'état.
   let orderConfirmPending = null;
 
+  // ---- Fiche de fabrication d'une création personnalisée ----
+  // Lit items[].customOrder tel qu'enregistré par le serveur (voir
+  // api/create-checkout-session.js). Tolère les anciennes commandes (decorIds,
+  // pas de couleur) et n'affiche jamais de HTML brut : tout est échappé.
+  const FAB_SHAPES = { string: 'String', culotte: 'Culotte classique', boxer: 'Boxer', bresilienne: 'Brésilienne', 'taille-haute': 'Taille haute' };
+  const FAB_MOTIFS = { pois: 'Pois', rayures: 'Rayures', leopard: 'Léopard' };
+  const FAB_DECOR = { fleur: 'Fleur brodée', noeud: 'Nœud', etoile: 'Étoile', coeur: 'Cœur', initiales: 'Initiales brodées', dentelle: 'Liseré dentelle', papillon: 'Papillon', lune: 'Lune' };
+  const FAB_EXTRAS = { piercing: 'Piercing déco', sequins: 'Séquins', rubans: 'Rubans', clous: 'Clous / studs', special: 'Demande particulière' };
+  function fabLabel(map, id) { return Object.prototype.hasOwnProperty.call(map, id) ? map[id] : String(id); }
+  function fabSwatch(hex) {
+    return /^#[0-9a-fA-F]{6}$/.test(hex || '') ? `<span class="fab-swatch" style="background:${hex};"></span>` : '';
+  }
+  function fabPct(v) { const n = Number(v); return Number.isFinite(n) ? Math.round(n) + ' %' : '?'; }
+
+  function fabricationHtml(co) {
+    if (!co || typeof co !== 'object') return '';
+    const esc = stringzEscapeHtml;
+    const rows = [];
+    rows.push(`<div><b>Forme :</b> ${esc(fabLabel(FAB_SHAPES, co.shapeId))} — <b>taille :</b> ${esc(co.size || 'non précisée')}</div>`);
+    if (co.color && (co.color.name || co.color.hex)) {
+      rows.push(`<div><b>Couleur :</b> ${fabSwatch(co.color.hex)} ${esc(co.color.name || '')}${co.color.code ? ' (' + esc(co.color.code) + ')' : ''}${co.color.hex ? ' <small>' + esc(co.color.hex) + '</small>' : ''}</div>`);
+    } else {
+      rows.push(`<div><b>Couleur :</b> <em>non enregistrée (commande passée avant la mise à jour)</em></div>`);
+    }
+    rows.push(`<div><b>Motif :</b> ${co.motifId ? esc(fabLabel(FAB_MOTIFS, co.motifId)) : 'aucun'}</div>`);
+
+    // Nouveau format : co.decor = [{ id, color, side, x, y }] ; ancien format : co.decorIds = ['fleur', …]
+    const decor = Array.isArray(co.decor) ? co.decor : (Array.isArray(co.decorIds) ? co.decorIds.map(id => ({ id })) : []);
+    if (decor.length) {
+      rows.push(`<div><b>Décorations (${decor.length}) :</b><ul>${decor.map(d => {
+        const pos = (d.side || d.x != null)
+          ? ` — ${d.side === 'back' ? 'dos' : 'devant'}, ${fabPct(d.x)} depuis la gauche, ${fabPct(d.y)} depuis le haut`
+          : '';
+        return `<li>${esc(fabLabel(FAB_DECOR, d.id))}${d.color ? ' ' + fabSwatch(d.color) + ' <small>' + esc(d.color) + '</small>' : ''}${pos}</li>`;
+      }).join('')}</ul></div>`);
+    } else {
+      rows.push(`<div><b>Décorations :</b> aucune</div>`);
+    }
+
+    const extras = Array.isArray(co.extraIds) ? co.extraIds : [];
+    rows.push(`<div><b>Options :</b> ${extras.length ? extras.map(id => esc(fabLabel(FAB_EXTRAS, id))).join(', ') : 'aucune'}</div>`);
+    if (co.specialRequest) {
+      rows.push(`<div><b>Demande spéciale :</b><div class="fab-request">${esc(co.specialRequest)}</div></div>`);
+    }
+    return `<div class="fab-box"><div class="fab-title">🧵 Fiche de fabrication</div>${rows.join('')}</div>`;
+  }
+
+  // Résumé d'une ligne pour la liste des commandes.
+  function fabricationSummary(co) {
+    if (!co || typeof co !== 'object') return '';
+    const esc = stringzEscapeHtml;
+    const bits = [];
+    if (co.color && co.color.name) bits.push('couleur ' + esc(co.color.name));
+    if (co.motifId) bits.push('motif ' + esc(fabLabel(FAB_MOTIFS, co.motifId)));
+    const nDecor = Array.isArray(co.decor) ? co.decor.length : (Array.isArray(co.decorIds) ? co.decorIds.length : 0);
+    if (nDecor) bits.push(nDecor + ' déco');
+    if (Array.isArray(co.extraIds) && co.extraIds.length) bits.push(co.extraIds.length + ' option(s)');
+    if (co.specialRequest) bits.push('📝 demande spéciale');
+    return bits.length ? `<div class="ord-fab-line">🧵 ${bits.join(' · ')}</div>` : '';
+  }
+
   function formatElapsed(dateStr) {
     const diffMs = Date.now() - new Date(dateStr).getTime();
     const mins = Math.floor(diffMs / 60000);
@@ -1263,6 +1330,7 @@
               <div class="ord-item-line">
                 ${it.qty}× ${stringzEscapeHtml(it.name)}${details ? ` <span class="ord-item-details">(${stringzEscapeHtml(details)})</span>` : ''}
                 ${it.remark ? `<br><em class="ord-item-remark">📝 ${stringzEscapeHtml(it.remark)}</em>` : ''}
+                ${it.customOrder ? fabricationSummary(it.customOrder) : ''}
               </div>
             `;
           })
@@ -1336,6 +1404,7 @@
         <thead><tr><th>Article</th><th>Type</th><th>Taille</th><th>Qté</th><th>Prix unitaire</th><th>Sous-total</th></tr></thead>
         <tbody>${itemsRows}</tbody>
       </table>
+      ${(o.items || []).filter(it => it.customOrder).map(it => fabricationHtml(it.customOrder)).join('')}
       ${o.shippingCost ? `<div class="od-row" style="margin-top:10px;"><span class="od-label">Port</span> ${o.shippingCost.toFixed(2).replace('.', ',')} €</div>` : ""}
       <div class="od-total">Total payé : ${o.total.toFixed(2).replace('.', ',')} €</div>
 

@@ -17,6 +17,27 @@ function getShippingRates(quantity) {
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
+// ---- Ateliers : l'acompte est lu ici, jamais fourni par le navigateur ----
+// Liste enregistrée par l'admin (table site_settings, clé "workshops", voir
+// api/products.js). Tant que l'admin n'a rien enregistré, le site affiche
+// l'atelier par défaut de shared-data.js (STRINGZ_DEFAULT_WORKSHOPS) : on en
+// garde ici la même copie (id + acompte), sinon il serait impossible à réserver.
+const DEFAULT_WORKSHOPS = [
+  { id: 'upcycling-2026-09-06', title: 'Atelier upcycling', dateLabel: '6 septembre 2026', deposit: 20 },
+];
+
+async function findWorkshop(workshopId) {
+  if (typeof workshopId !== 'string' || !/^[a-z0-9-]{1,120}$/.test(workshopId)) return null;
+  const { rows } = await sql`select value from site_settings where key = 'workshops'`;
+  const list = rows.length && Array.isArray(rows[0].value) ? rows[0].value : DEFAULT_WORKSHOPS;
+  return list.find((w) => w && w.id === workshopId) || null;
+}
+
+function cleanShortText(value, maxLen) {
+  if (typeof value !== 'string') return '';
+  return value.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, maxLen);
+}
+
 // Pays livrés. FR = tarif "France", tous les autres = tarif "étranger".
 // Élargis cette liste si tu livres ailleurs (c'est la seule chose à changer,
 // pense aussi à mettre à jour le libellé de l'option "Étranger" dans boutique.html).
@@ -34,8 +55,10 @@ const ALL_SHIPPABLE_COUNTRIES = ['FR', ...INTERNATIONAL_COUNTRIES];
 // boutique.html) : on ne passe alors à Stripe que le bon tarif, et
 // shipping_address_collection n'autorise que les pays de cette zone — Stripe
 // refuse lui-même une adresse hors zone.
-// Sans choix de destination (ex. page de commande perso), on retombe sur les
-// deux tarifs, le client choisit celui qui correspond à son pays.
+// La destination est OBLIGATOIRE et validée côté serveur ('FR' ou 'INTL') pour
+// tout envoi physique (panier ET création perso) : sans elle, Stripe proposerait
+// les deux tarifs et un client à l'étranger pourrait choisir le tarif France.
+const VALID_DESTINATIONS = ['FR', 'INTL'];
 function buildShippingBlock(quantity, destination) {
   const rates = getShippingRates(quantity);
   const franceOption = {
@@ -65,10 +88,8 @@ function buildShippingBlock(quantity, destination) {
       shipping_options: [abroadOption],
     };
   }
-  return {
-    shipping_address_collection: { allowed_countries: ALL_SHIPPABLE_COUNTRIES },
-    shipping_options: [franceOption, abroadOption],
-  };
+  // Ne devrait jamais arriver (la destination est validée avant l'appel).
+  throw new Error('Destination de livraison invalide.');
 }
 
 module.exports = async (req, res) => {
@@ -87,6 +108,13 @@ module.exports = async (req, res) => {
   // des indices (0, 1, 2...) pris à tort pour des identifiants produit.
   if (body.cart && !Array.isArray(body.cart) && typeof body.cart === 'object') {
     body.cart = Object.entries(body.cart).map(([id, qty]) => ({ productId: Number(id), qty }));
+  }
+
+  // Destination de livraison : validée avant toute lecture en base ou appel Stripe.
+  const needsShipping = Array.isArray(body.cart) || !!body.customOrder;
+  if (needsShipping && !VALID_DESTINATIONS.includes(body.destination)) {
+    res.status(400).json({ error: 'Choisis une destination de livraison (France ou étranger).' });
+    return;
   }
 
   try {
@@ -159,32 +187,57 @@ module.exports = async (req, res) => {
 
     // ---- Cas 2 : création personnalisée (commande_perso.html) ----
     } else if (body.customOrder) {
-      const { totalCents: t, name } = computeCustomOrderPrice(body.customOrder);
+      let priced;
+      try {
+        priced = computeCustomOrderPrice(body.customOrder);
+      } catch (pricingErr) {
+        if (pricingErr && pricingErr.isValidation) {
+          res.status(400).json({ error: pricingErr.message });
+          return;
+        }
+        throw pricingErr;
+      }
+      const { totalCents: t, name, fabrication } = priced;
       totalCents = t;
       shippingQty = 1;
       lineItems.push({
         price_data: { currency: 'eur', product_data: { name }, unit_amount: t },
         quantity: 1,
       });
-      orderItems.push({ name, qty: 1, unitPrice: t / 100, customOrder: body.customOrder });
+      // On enregistre la fiche de fabrication reconstruite par le serveur (valeurs
+      // validées, celles qui ont servi au calcul du prix), jamais le JSON brut du navigateur.
+      orderItems.push({ name, qty: 1, unitPrice: t / 100, customOrder: fabrication });
 
-    // ---- Cas 3 : article libre (ex. acompte atelier, workshop.html) ----
-    } else if (body.customItem && body.customItem.name) {
-      const cleanAmount = Math.max(50, Math.min(500000, Math.round(Number(body.customItem.unitAmount) || 0)));
-      if (!cleanAmount) {
-        res.status(400).json({ error: 'Montant invalide.' });
+    // ---- Cas 3 : acompte d'atelier (workshop.html) ----
+    // Le navigateur n'envoie QUE l'identifiant de l'atelier et les coordonnées du
+    // participant. Le montant de l'acompte, le titre et la date viennent de la
+    // liste des ateliers enregistrée côté serveur. (L'ancien format "customItem"
+    // avec un montant fourni par le client n'est plus accepté.)
+    } else if (body.workshopBooking && typeof body.workshopBooking === 'object') {
+      const wb = body.workshopBooking;
+      const workshop = await findWorkshop(wb.workshopId);
+      if (!workshop) {
+        res.status(400).json({ error: 'Atelier introuvable (il a peut-être été supprimé).' });
         return;
       }
-      totalCents = cleanAmount;
+      const depositCents = Math.round(Number(workshop.deposit) * 100);
+      if (!Number.isFinite(depositCents) || depositCents < 50 || depositCents > 500000) {
+        res.status(400).json({ error: "Cet atelier n'a pas d'acompte payable en ligne." });
+        return;
+      }
+      const participantName = cleanShortText(wb.participantName, 100);
+      const participantContact = cleanShortText(wb.contact, 100);
+      if (!participantName || !participantContact) {
+        res.status(400).json({ error: 'Nom et moyen de contact requis.' });
+        return;
+      }
+      const itemName = `${workshop.title} - ${workshop.dateLabel} (acompte) — ${participantName} (${participantContact})`.slice(0, 250);
+      totalCents = depositCents;
       lineItems.push({
-        price_data: {
-          currency: 'eur',
-          product_data: { name: String(body.customItem.name).slice(0, 250) },
-          unit_amount: cleanAmount,
-        },
+        price_data: { currency: 'eur', product_data: { name: itemName }, unit_amount: depositCents },
         quantity: 1,
       });
-      orderItems.push({ name: body.customItem.name, qty: 1, unitPrice: cleanAmount / 100 });
+      orderItems.push({ name: itemName, qty: 1, unitPrice: depositCents / 100, workshopId: workshop.id });
     } else {
       res.status(400).json({ error: 'Requête invalide.' });
       return;
@@ -192,7 +245,6 @@ module.exports = async (req, res) => {
 
     // Adresse + port : uniquement pour les articles physiques (panier, création
     // perso), pas pour un acompte d'atelier.
-    const needsShipping = Array.isArray(body.cart) || !!body.customOrder;
     const shippingBlock = needsShipping ? buildShippingBlock(shippingQty, body.destination) : {};
 
     const checkoutSession = await stripe.checkout.sessions.create({

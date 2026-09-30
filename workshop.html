@@ -486,9 +486,12 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          customItem: {
-            name: `${selectedWorkshop.title} - ${selectedWorkshop.dateLabel} (acompte) — ${name} (${contact})`,
-            unitAmount: Math.round(selectedWorkshop.deposit * 100), // Stripe attend des centimes
+          // Le montant de l'acompte n'est PAS envoyé : le serveur le retrouve à
+          // partir de l'identifiant de l'atelier.
+          workshopBooking: {
+            workshopId: selectedWorkshop.id,
+            participantName: name,
+            contact: contact,
           },
         }),
       });
