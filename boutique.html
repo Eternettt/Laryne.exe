@@ -272,6 +272,8 @@
   #checkout-btn:disabled { background: #aaa; cursor: not-allowed; }
 
   .empty-msg { text-align: center; color: #e0729f; padding: 30px 10px; font-size: 14px; }
+  #grid-status-msg { grid-column: 1 / -1; }
+  .retry-btn { margin-top: 10px; padding: 8px 16px; background: linear-gradient(#c2477a, #7a2350); color: #fff; border: none; border-radius: 6px; font-size: 14px; cursor: pointer; }
 
   #toast {
     position: fixed;
@@ -1016,16 +1018,42 @@ const DEMO_PRODUCTS = [
   },
 ];
 
-async function loadProductsFromServer() {
-  let fetched = [];
-  try {
-    fetched = await stringzFetchProducts();
-  } catch (e) {
-    // Pas de backend joignable (site ouvert en local, API pas encore branchée...) :
-    // on retombe sur les produits d'exemple au lieu de planter le chargement.
-    fetched = [];
+// ---- Récupération de la liste des produits ----
+// Jusqu'à 3 tentatives, chacune limitée à 20 s : une réponse lente ou une erreur
+// passagère du serveur ne laisse plus la boutique vide, et une ERREUR n'affiche
+// plus les produits d'exemple (seule une liste vide mais valide les affiche).
+const PRODUCTS_FETCH_TIMEOUT_MS = 20000;
+const PRODUCTS_FETCH_ATTEMPTS = 3;
+let productsReady = false;   // vrai dès que la liste a été reçue et affichée
+let productsLoading = false; // évite deux chargements simultanés (double clic sur « Réessayer »)
+
+async function fetchProductsList() {
+  for (let attempt = 1; attempt <= PRODUCTS_FETCH_ATTEMPTS; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), PRODUCTS_FETCH_TIMEOUT_MS);
+    try {
+      const res = await fetch('/api/products', { credentials: 'same-origin', signal: controller.signal });
+      if (res.ok) {
+        const data = await res.json();
+        return { ok: true, products: Array.isArray(data.products) ? data.products : [] };
+      }
+    } catch (e) {
+      // réseau coupé, délai dépassé ou réponse illisible : on retente
+    } finally {
+      clearTimeout(timer);
+    }
+    if (attempt < PRODUCTS_FETCH_ATTEMPTS) await new Promise(r => setTimeout(r, 1500 * attempt));
   }
-  products = (fetched && fetched.length) ? fetched : JSON.parse(JSON.stringify(DEMO_PRODUCTS));
+  return { ok: false, products: [] };
+}
+
+// Renvoie true si la liste a été reçue. En cas d'échec, la liste déjà affichée
+// (s'il y en a une) n'est jamais remplacée.
+async function loadProductsFromServer() {
+  const result = await fetchProductsList();
+  if (!result.ok) return false;
+  const fetched = result.products;
+  products = fetched.length ? fetched : JSON.parse(JSON.stringify(DEMO_PRODUCTS));
   products.forEach(p => {
     // Images : on garde TOUJOURS celles enregistrées en base (ajoutées depuis
     // admin.html). Les photos de démo ne servent que si le produit n'en a
@@ -1047,6 +1075,43 @@ async function loadProductsFromServer() {
     p.types = normalizeTypes(p);
     if (!p.description) p.description = "";
   });
+  return true;
+}
+
+// ---- Message d'état dans la grille (chargement / erreur avec bouton « Réessayer ») ----
+function showGridMessage(text, withRetry) {
+  const grid = document.getElementById("product-grid");
+  const old = grid.querySelector(".empty-msg");
+  if (old) old.remove();
+  const msg = document.createElement("p");
+  msg.className = "empty-msg";
+  msg.id = "grid-status-msg";
+  msg.textContent = text;
+  if (withRetry) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "retry-btn";
+    btn.textContent = "Réessayer";
+    btn.onclick = loadAndShowProducts;
+    msg.appendChild(document.createElement("br"));
+    msg.appendChild(btn);
+  }
+  grid.appendChild(msg);
+}
+
+async function loadAndShowProducts() {
+  if (productsLoading) return;
+  productsLoading = true;
+  showGridMessage("Chargement des articles…");
+  const loaded = await loadProductsFromServer();
+  productsLoading = false;
+  if (!loaded) {
+    showGridMessage("Les articles n'ont pas pu être chargés pour le moment. Vérifie ta connexion puis réessaie.", true);
+    return;
+  }
+  productsReady = true;
+  initCategories();
+  renderProducts();
 }
 
 // ---- Transforme en tableau ce que le serveur renvoie comme "types" ----
@@ -1149,7 +1214,7 @@ function productContentHTML(p) {
   // stock et bouton disparaissent de la grille (ils restent visibles dans la
   // fenêtre qui s'ouvre au clic, via openProductWindows).
   return `
-    <img src="${stringzEscapeHtml((p.images && p.images[0]) || p.img)}" alt="${stringzEscapeHtml(p.name)}">
+    <img src="${stringzEscapeHtml((p.images && p.images[0]) || p.img)}" alt="${stringzEscapeHtml(p.name)}" decoding="async">
   `;
 }
 
@@ -2181,9 +2246,7 @@ function saveRemark() {
 
 // ---- Démarrage ----
 (async function initBoutique() {
-  await loadProductsFromServer();
-  initCategories();
-  renderProducts();
+  await loadAndShowProducts();
   updateCartUI();
   updateAdminUI();
   await initAdminAccess(); // revérifie l'accès admin auprès du serveur
@@ -2194,9 +2257,20 @@ function saveRemark() {
 // taille calculée une seule fois au chargement resterait fausse après un
 // changement d'orientation.
 let resizeRerenderTimeout = null;
+let lastRenderedWidth = window.innerWidth;
 window.addEventListener("resize", () => {
+  // Tant que la liste n'est pas arrivée, rien à reconstruire (et on ne veut pas
+  // écraser le message « Chargement… » par « Aucun produit trouvé »).
+  if (!productsReady) return;
+  // Sur téléphone, la barre d'adresse qui se masque en défilant déclenche des
+  // « resize » qui ne changent que la HAUTEUR : les post-its ne dépendent que de
+  // la largeur, inutile de tous les reconstruire (clignotement des photos).
+  if (window.innerWidth === lastRenderedWidth) return;
   clearTimeout(resizeRerenderTimeout);
-  resizeRerenderTimeout = setTimeout(() => renderProducts(), 200);
+  resizeRerenderTimeout = setTimeout(() => {
+    lastRenderedWidth = window.innerWidth;
+    renderProducts();
+  }, 200);
 });
 
 </script>

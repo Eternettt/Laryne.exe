@@ -27,6 +27,7 @@
    renvoyés au front sous forme de tableau "types" (voir typesFromCategory).
    ========================================================================== */
 
+const crypto = require('crypto');
 const { sql } = require('../lib/db');
 const { getSession } = require('../lib/session');
 
@@ -76,6 +77,106 @@ function toClientProduct(r) {
     icon: r.icon,
     images: r.images || [],
   };
+}
+
+// ==========================================================================
+// Photos des produits : adresses légères dans la liste publique
+// ==========================================================================
+// Les photos sont enregistrées en base sous forme de "data-URI" base64 (souvent
+// plusieurs centaines de Ko chacune). Les renvoyer toutes DANS la liste JSON
+// rendait cette réponse énorme : très lente sur téléphone, et en erreur dès
+// qu'elle dépasse la limite de 4,5 Mo d'une fonction Vercel (la boutique ne
+// recevait alors rien). La liste publique renvoie donc, pour chaque photo
+// volumineuse, une adresse "/api/products?img=<id produit>&h=<empreinte>" :
+// le navigateur charge les photos séparément, en parallèle, et les garde en
+// cache. L'empreinte (SHA-1 du contenu) rend l'adresse "immuable" : si la
+// photo change, l'adresse change, donc aucun risque de photo périmée.
+// Rien n'est modifié en base : les données restent des data-URI.
+const INLINE_IMAGE_MAX_CHARS = 8192; // en dessous, la photo reste dans la liste
+const DATA_IMAGE_RE = /^data:image\/[a-z0-9.+-]+;base64,/i;
+const OWN_IMAGE_URL_RE = /^(?:https?:\/\/[^/]+)?\/api\/products\?img=(\d+)&h=([0-9a-f]{16})$/;
+
+function imageHash(dataUri) {
+  return crypto.createHash('sha1').update(dataUri).digest('hex').slice(0, 16);
+}
+
+function lightImageRef(value, productId) {
+  if (typeof value !== 'string' || value.length <= INLINE_IMAGE_MAX_CHARS || !DATA_IMAGE_RE.test(value)) {
+    return value; // adresse externe, emoji, petite image : inchangé
+  }
+  return `/api/products?img=${productId}&h=${imageHash(value)}`;
+}
+
+// Même contenu que toClientProduct, mais avec des adresses légères pour les photos.
+function toPublicProduct(r) {
+  const p = toClientProduct(r);
+  p.icon = lightImageRef(p.icon, r.id);
+  if (Array.isArray(p.images)) p.images = p.images.map((v) => lightImageRef(v, r.id));
+  return p;
+}
+
+// Photos (icône + galerie) d'un produit, qui correspondent à une empreinte donnée.
+async function findImageByHash(productId, hash, cache) {
+  let candidates = cache && cache.get(productId);
+  if (!candidates) {
+    const { rows } = await sql`select icon, images from products where id = ${productId}`;
+    candidates = rows.length
+      ? [rows[0].icon].concat(Array.isArray(rows[0].images) ? rows[0].images : [])
+          .filter((v) => typeof v === 'string' && DATA_IMAGE_RE.test(v))
+      : [];
+    if (cache) cache.set(productId, candidates);
+  }
+  return candidates.find((v) => imageHash(v) === hash) || null;
+}
+
+// La boutique (mode admin) renvoie parfois à l'enregistrement des adresses
+// légères reçues dans la liste publique : on les remplace par les vraies données
+// AVANT d'écrire en base, pour ne jamais enregistrer une adresse à la place d'une
+// photo. Renvoie null si l'une d'elles ne correspond plus à une photo existante.
+async function expandOwnImageUrls(images) {
+  if (!Array.isArray(images)) return images;
+  const cache = new Map();
+  const out = [];
+  for (const v of images) {
+    const m = typeof v === 'string' ? OWN_IMAGE_URL_RE.exec(v) : null;
+    if (!m) { out.push(v); continue; }
+    const data = await findImageByHash(Number(m[1]), m[2], cache);
+    if (!data) return null;
+    out.push(data);
+  }
+  return out;
+}
+
+// GET /api/products?img=<id>&h=<empreinte> : sert une photo (public, cache long).
+async function handleProductImage(req, res, url) {
+  if (req.method !== 'GET') {
+    res.status(405).json({ error: 'Méthode non autorisée.' });
+    return;
+  }
+  const idParam = url.searchParams.get('img') || '';
+  const hash = url.searchParams.get('h') || '';
+  if (!/^\d{1,9}$/.test(idParam) || !/^[0-9a-f]{16}$/.test(hash)) {
+    res.status(400).json({ error: 'Paramètres invalides.' });
+    return;
+  }
+  const data = await findImageByHash(Number(idParam), hash);
+  const cut = data ? data.indexOf(',') : -1;
+  const head = cut > 0 ? /^data:(image\/[a-z0-9.+-]+);base64$/i.exec(data.slice(0, cut)) : null;
+  if (!head) {
+    res.setHeader('Cache-Control', 'no-store'); // une 404 ne doit jamais rester en cache
+    res.status(404).json({ error: 'Image introuvable.' });
+    return;
+  }
+  const buf = Buffer.from(data.slice(cut + 1), 'base64');
+  res.setHeader('Content-Type', head[1].toLowerCase());
+  res.setHeader('Content-Length', String(buf.length));
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  // Une photo n'est jamais modifiée sur place (autre contenu = autre empreinte = autre adresse).
+  res.setHeader('Cache-Control', 'public, max-age=31536000, s-maxage=31536000, immutable');
+  // Si quelqu'un ouvre l'adresse directement, rien (ex. SVG) ne peut s'exécuter.
+  res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; sandbox");
+  res.statusCode = 200;
+  res.end(buf);
 }
 
 // ==========================================================================
@@ -307,6 +408,12 @@ module.exports = async (req, res) => {
       return;
     }
 
+    // ---- Une photo produit (public, voir handleProductImage) ----
+    if (!isAdmin && url.searchParams.get('img') !== null) {
+      await handleProductImage(req, res, url);
+      return;
+    }
+
     // ---- Route publique : GET simple, pas de vérification ----
     if (!isAdmin) {
       if (req.method !== 'GET') {
@@ -316,7 +423,7 @@ module.exports = async (req, res) => {
       const { rows } = await sql`
         select id, name, category, description, price_cents, stock, icon, images from products order by id asc
       `;
-      res.status(200).json({ products: rows.map(toClientProduct) });
+      res.status(200).json({ products: rows.map(toPublicProduct) });
       return;
     }
 
@@ -338,11 +445,16 @@ module.exports = async (req, res) => {
         res.status(400).json({ error: 'Nom requis.' });
         return;
       }
+      const imagesToSave = await expandOwnImageUrls(images || []);
+      if (imagesToSave === null) {
+        res.status(400).json({ error: 'Une image de la liste est introuvable : recharge la page puis réessaie.' });
+        return;
+      }
       const priceCents = Math.round((Number(price) || 0) * 100);
       const finalCategory = Array.isArray(types) ? categoryFromTypes(types) : (category || '');
       const { rows } = await sql`
         insert into products (name, category, description, price_cents, stock, icon, images)
-        values (${name}, ${finalCategory}, ${description || ''}, ${priceCents}, ${Number(stock) || 0}, ${icon || ''}, ${JSON.stringify(images || [])})
+        values (${name}, ${finalCategory}, ${description || ''}, ${priceCents}, ${Number(stock) || 0}, ${icon || ''}, ${JSON.stringify(imagesToSave)})
         returning id, name, category, description, price_cents, stock, icon, images
       `;
       res.status(200).json({ product: toClientProduct(rows[0]) });
@@ -362,6 +474,16 @@ module.exports = async (req, res) => {
         return;
       }
 
+      // Adresses légères (voir expandOwnImageUrls) remplacées AVANT toute écriture.
+      let imagesToSave = images;
+      if (images !== undefined) {
+        imagesToSave = await expandOwnImageUrls(images);
+        if (imagesToSave === null) {
+          res.status(400).json({ error: 'Une image de la liste est introuvable : recharge la page puis réessaie.' });
+          return;
+        }
+      }
+
       if (name !== undefined) await sql`update products set name = ${name}, updated_at = now() where id = ${id}`;
       // "types" (tableau) prime sur "category" : c'est ce qu'envoie admin.html
       // quand on coche/décoche un type.
@@ -375,7 +497,7 @@ module.exports = async (req, res) => {
       if (price !== undefined) await sql`update products set price_cents = ${Math.round(Number(price) * 100)}, updated_at = now() where id = ${id}`;
       if (stock !== undefined) await sql`update products set stock = ${Number(stock)}, updated_at = now() where id = ${id}`;
       if (icon !== undefined) await sql`update products set icon = ${icon}, updated_at = now() where id = ${id}`;
-      if (images !== undefined) await sql`update products set images = ${JSON.stringify(images)}, updated_at = now() where id = ${id}`;
+      if (images !== undefined) await sql`update products set images = ${JSON.stringify(imagesToSave)}, updated_at = now() where id = ${id}`;
 
       const { rows } = await sql`
         select id, name, category, description, price_cents, stock, icon, images from products where id = ${id}
