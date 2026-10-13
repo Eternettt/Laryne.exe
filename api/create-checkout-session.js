@@ -2,6 +2,7 @@ const Stripe = require('stripe');
 const { sql } = require('../lib/db');
 const { getSession } = require('../lib/session');
 const { computeCustomOrderPrice } = require('../lib/custom-order-pricing');
+const { computeMailClubOrder } = require('../lib/mail-club');
 // ---- Frais de port selon le nombre de pièces (intégré ici : pas de fichier en plus) ----
 // Paliers : 1-2 / 3-5 / 6-10 pièces. Au-delà de 10, on applique le dernier palier.
 const SHIPPING_TIERS = [
@@ -92,6 +93,27 @@ function buildShippingBlock(quantity, destination) {
   throw new Error('Destination de livraison invalide.');
 }
 
+// ---- Mail Club : adresse + port, calculés côté serveur (lib/mail-club.js) ----
+// Port = port d'un envoi x nombre d'envois, facturé en une fois ; seuls les pays de la zone choisie sont acceptés.
+function buildMailClubShippingBlock(info) {
+  const shippingOption = {
+    shipping_options: [{
+      shipping_rate_data: {
+        type: 'fixed_amount',
+        fixed_amount: { amount: info.shippingCents, currency: 'eur' },
+        display_name: `Livraison Mail Club (${info.shipments} envoi${info.shipments > 1 ? 's' : ''})`,
+      },
+    }],
+  };
+  if (info.delivery === 'FR') {
+    return { shipping_address_collection: { allowed_countries: ['FR'] }, ...shippingOption };
+  }
+  if (info.delivery === 'INTL') {
+    return { shipping_address_collection: { allowed_countries: INTERNATIONAL_COUNTRIES }, ...shippingOption };
+  }
+  throw new Error('Mode de livraison Mail Club invalide.');
+}
+
 module.exports = async (req, res) => {
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Méthode non autorisée.' });
@@ -122,6 +144,7 @@ module.exports = async (req, res) => {
     const orderItems = [];
     let totalCents = 0;
     let shippingQty = 0; // nombre de pièces, sert à choisir le palier de port
+    let mailClubInfo = null; // renseigné seulement pour une commande Mail Club
 
     // ---- Cas 1 : panier boutique (boutique.html) ----
     // body.cart est un tableau de lignes : { productId, qty, type, size, remark }
@@ -238,6 +261,48 @@ module.exports = async (req, res) => {
         quantity: 1,
       });
       orderItems.push({ name: itemName, qty: 1, unitPrice: depositCents / 100, workshopId: workshop.id });
+
+    // ---- Cas 4 : abonnement Mail Club (mail_club.html) ----
+    // Le navigateur n'envoie QUE { months, delivery, contact }. Durée, prix, port et
+    // nombre d'envois sont recalculés ici (lib/mail-club.js) ; tout montant reçu est ignoré.
+    // Paiement unique de toute la durée (mode 'payment', pas d'abonnement Stripe récurrent).
+    } else if (body.mailClub && typeof body.mailClub === 'object' && !Array.isArray(body.mailClub)) {
+      try {
+        mailClubInfo = computeMailClubOrder(body.mailClub);
+      } catch (mcErr) {
+        if (mcErr && mcErr.isValidation) {
+          res.status(mcErr.status || 400).json({ error: mcErr.message });
+          return;
+        }
+        throw mcErr;
+      }
+      // Sans les tables Mail Club (migration pas encore exécutée), un paiement ne pourrait
+      // pas créer d'abonnement : on refuse AVANT de créer la session Stripe.
+      try {
+        await sql`select 1 from mail_club_subscriptions limit 1`;
+      } catch (tableErr) {
+        console.error('[checkout] Mail Club indisponible (migration non exécutée ?) :', tableErr);
+        res.status(503).json({ error: "Le Mail Club n'est pas disponible pour le moment." });
+        return;
+      }
+      totalCents = mailClubInfo.priceCents; // le port est ajouté par Stripe (shipping_options), puis relu par le webhook
+      lineItems.push({
+        price_data: { currency: 'eur', product_data: { name: mailClubInfo.name }, unit_amount: mailClubInfo.priceCents },
+        quantity: 1,
+      });
+      orderItems.push({
+        name: mailClubInfo.name,
+        qty: 1,
+        unitPrice: mailClubInfo.priceCents / 100,
+        mailClub: {
+          months: mailClubInfo.months,
+          shipments: mailClubInfo.shipments,
+          delivery: mailClubInfo.delivery,
+          priceCents: mailClubInfo.priceCents,
+          shippingCents: mailClubInfo.shippingCents,
+          contactNote: mailClubInfo.contactNote || null,
+        },
+      });
     } else {
       res.status(400).json({ error: 'Requête invalide.' });
       return;
@@ -245,15 +310,18 @@ module.exports = async (req, res) => {
 
     // Adresse + port : uniquement pour les articles physiques (panier, création
     // perso), pas pour un acompte d'atelier.
-    const shippingBlock = needsShipping ? buildShippingBlock(shippingQty, body.destination) : {};
+    const shippingBlock = mailClubInfo
+      ? buildMailClubShippingBlock(mailClubInfo)
+      : (needsShipping ? buildShippingBlock(shippingQty, body.destination) : {});
 
     const checkoutSession = await stripe.checkout.sessions.create({
       mode: 'payment',
       payment_method_types: ['card'],
       line_items: lineItems,
       success_url: `${origin}/success.html?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}/boutique.html`,
+      cancel_url: `${origin}/${mailClubInfo ? 'mail_club.html' : 'boutique.html'}`,
       ...shippingBlock,
+      ...(mailClubInfo ? { metadata: { kind: 'mail_club', months: String(mailClubInfo.months), delivery: mailClubInfo.delivery } } : {}),
     });
 
     // totalCents ne compte ici que les articles : le port n'est connu

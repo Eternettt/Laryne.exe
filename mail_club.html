@@ -178,6 +178,31 @@
   .submit-btn:hover { background: linear-gradient(#d1588c, #8a2a5c); }
   .submit-btn:active { background: linear-gradient(#7a2350, #c2477a); }
 
+
+  .summary-box {
+    background: #fff;
+    border: 1px solid #ea8fb8;
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 14px;
+    font-size: 13px;
+    color: #4a1a30;
+  }
+  .summary-box .line { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; }
+  .summary-box .line.total {
+    font-weight: bold;
+    font-size: 15px;
+    color: #7a2350;
+    border-top: 2px solid #ea8fb8;
+    margin-top: 6px;
+    padding-top: 8px;
+  }
+  .summary-box .muted { color: #9a5c78; font-size: 12px; }
+  .pay-note { font-size: 12px; color: #9a5c78; text-align: center; margin-top: 10px; line-height: 1.4; }
+  .submit-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+  .field .hint { font-size: 11px; color: #9a5c78; margin-top: 4px; }
+  .radio-option.unavailable { opacity: 0.6; }
+
   #toast {
     position: fixed;
     bottom: 20px;
@@ -221,7 +246,7 @@
       <li>et plein d'autres surprises</li>
     </ul>
     <div class="price-note">
-      Ici tu remplis tes infos pour que je puisse t'envoyer ta lettre !<br>
+      Ici tu choisis ta durée et tu paies en ligne pour recevoir ta lettre chaque mois !<br>
       La lettre est au prix de 30 euros + frais de port.
     </div>
   </div>
@@ -230,47 +255,37 @@
     <div class="panel">
       <form id="mailclub-form" novalidate onsubmit="return handleMailClubSubmit(event)">
         <div class="field" id="mc-period-field">
-          <label>Tu veux souscrire pour quelle période ?</label>
-          <div class="radio-group">
-            <label class="radio-option">
-              <input type="radio" name="mc-period" value="1 mois" onchange="toggleOtherPeriod()"> 1 mois
-            </label>
-            <label class="radio-option">
-              <input type="radio" name="mc-period" value="3 mois" onchange="toggleOtherPeriod()"> 3 mois
-            </label>
-            <label class="radio-option">
-              <input type="radio" name="mc-period" value="6 mois" onchange="toggleOtherPeriod()"> 6 mois
-            </label>
-            <label class="radio-option">
-              <input type="radio" name="mc-period" value="9 mois" onchange="toggleOtherPeriod()"> 9 mois
-            </label>
-            <label class="radio-option other-option">
-              <input type="radio" name="mc-period" value="autre" id="mc-period-other-radio" onchange="toggleOtherPeriod()"> Autre :
-              <input type="text" id="mc-period-other" placeholder="précise ici" onfocus="selectOtherPeriod()">
-            </label>
+          <label>Tu veux souscrire pour quelle durée ?</label>
+          <div class="radio-group" id="mc-period-group">
+            <label class="radio-option"><input type="radio" name="mc-period" value="1" onchange="refreshSummary()"> 1 mois</label>
+            <label class="radio-option"><input type="radio" name="mc-period" value="3" onchange="refreshSummary()"> 3 mois</label>
+            <label class="radio-option"><input type="radio" name="mc-period" value="6" onchange="refreshSummary()"> 6 mois</label>
+            <label class="radio-option"><input type="radio" name="mc-period" value="9" onchange="refreshSummary()"> 9 mois</label>
           </div>
-          <div class="error">Merci de choisir une période.</div>
+          <div class="error">Merci de choisir une durée.</div>
         </div>
 
-        <div class="field" id="mc-name-field">
-          <label for="mc-name">Quel est ton nom et ton prénom ?</label>
-          <input type="text" id="mc-name" placeholder="Ton nom et prénom">
-          <div class="error">Merci d'entrer ton nom et prénom.</div>
+        <div class="field" id="mc-delivery-field">
+          <label>Comment tu veux recevoir ta lettre ?</label>
+          <div class="radio-group">
+            <label class="radio-option other-option"><input type="radio" name="mc-delivery" value="FR" onchange="refreshSummary()"> Livraison en France</label>
+            <label class="radio-option other-option"><input type="radio" name="mc-delivery" value="INTL" onchange="refreshSummary()"> Livraison à l'étranger</label>
+          </div>
+          <div class="hint">L'adresse te sera demandée sur la page de paiement sécurisée. Frais de port : ceux d'un envoi, multipliés par le nombre de mois.</div>
+          <div class="error">Merci de choisir un mode de livraison.</div>
         </div>
 
         <div class="field" id="mc-contact-field">
-          <label for="mc-contact">Comment je peux te contacter ? (mail, numéro, insta ?)</label>
-          <input type="text" id="mc-contact" placeholder="ton mail, numéro ou @insta">
-          <div class="error">Merci d'indiquer un moyen de te contacter.</div>
+          <label for="mc-contact">Un autre moyen de te contacter ? (insta, numéro… — facultatif)</label>
+          <input type="text" id="mc-contact" maxlength="100" placeholder="@insta ou numéro">
         </div>
 
-        <div class="field" id="mc-address-field">
-          <label for="mc-address">Donne-moi ton adresse</label>
-          <input type="text" id="mc-address" placeholder="Ton adresse postale">
-          <div class="error">Merci d'entrer ton adresse.</div>
+        <div class="summary-box" id="mc-summary" aria-live="polite">
+          <div class="muted">Choisis une durée et un mode de livraison pour voir le prix.</div>
         </div>
 
-        <button type="submit" class="submit-btn">Envoyer ma demande</button>
+        <button type="submit" class="submit-btn" id="mc-submit" disabled>Payer</button>
+        <div class="pay-note">Paiement sécurisé par carte (Stripe), en une seule fois pour toute la durée choisie. Aucun prélèvement mensuel.</div>
       </form>
     </div>
   </div>
@@ -279,10 +294,6 @@
 <div id="toast"></div>
 
 <script>
-  function setInvalid(fieldId, invalid) {
-    document.getElementById(fieldId).classList.toggle('invalid', invalid);
-  }
-
   let toastTimeout;
   function showToast(msg, isError) {
     const toast = document.getElementById('toast');
@@ -290,61 +301,133 @@
     toast.classList.toggle('error', !!isError);
     toast.classList.add('show');
     clearTimeout(toastTimeout);
-    toastTimeout = setTimeout(() => toast.classList.remove('show'), 3200);
+    toastTimeout = setTimeout(() => toast.classList.remove('show'), 3500);
   }
 
-  function selectOtherPeriod() {
-    document.getElementById('mc-period-other-radio').checked = true;
+  function setInvalid(fieldId, invalid) {
+    document.getElementById(fieldId).classList.toggle('invalid', invalid);
   }
 
-  function toggleOtherPeriod() {
-    const otherChecked = document.getElementById('mc-period-other-radio').checked;
-    document.getElementById('mc-period-other').disabled = !otherChecked;
+  function euros(cents) {
+    return (cents / 100).toFixed(2).replace('.', ',') + ' €';
   }
-  toggleOtherPeriod();
 
-  function handleMailClubSubmit(event) {
-    event.preventDefault();
-    const periodChoice = document.querySelector('input[name="mc-period"]:checked');
-    let period = periodChoice ? periodChoice.value : '';
-    if (period === 'autre') {
-      period = document.getElementById('mc-period-other').value.trim();
+  // Tarifs envoyés par le serveur (affichage seulement : le serveur recalcule tout au paiement).
+  let priceTable = null;   // tableau de durées, ou null si pas encore chargé
+  let pricesError = false;
+  let submitting = false;
+
+  async function loadPrices() {
+    try {
+      const res = await fetch('/api/mail-club?mode=prices', { credentials: 'same-origin' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      priceTable = Array.isArray(data.durations) ? data.durations : null;
+      pricesError = !priceTable;
+    } catch (e) {
+      priceTable = null;
+      pricesError = true;
     }
-    const name = document.getElementById('mc-name').value.trim();
-    const contact = document.getElementById('mc-contact').value.trim();
-    const address = document.getElementById('mc-address').value.trim();
+    refreshSummary();
+  }
 
-    const periodValid = period.length > 0;
-    const nameValid = name.length > 0;
-    const contactValid = contact.length > 0;
-    const addressValid = address.length > 0;
+  function selectedValue(name) {
+    const el = document.querySelector('input[name="' + name + '"]:checked');
+    return el ? el.value : '';
+  }
 
-    setInvalid('mc-period-field', !periodValid);
-    setInvalid('mc-name-field', !nameValid);
-    setInvalid('mc-contact-field', !contactValid);
-    setInvalid('mc-address-field', !addressValid);
+  // Affiche le récapitulatif de prix et active (ou non) le bouton de paiement.
+  function refreshSummary() {
+    const box = document.getElementById('mc-summary');
+    const btn = document.getElementById('mc-submit');
+    box.textContent = '';
+    btn.disabled = true;
+    btn.textContent = 'Payer';
 
-    if (!periodValid || !nameValid || !contactValid || !addressValid) {
+    const months = Number(selectedValue('mc-period'));
+    const delivery = selectedValue('mc-delivery');
+
+    function note(text) {
+      const d = document.createElement('div');
+      d.className = 'muted';
+      d.textContent = text;
+      box.appendChild(d);
+    }
+    function line(label, value, isTotal) {
+      const d = document.createElement('div');
+      d.className = 'line' + (isTotal ? ' total' : '');
+      const a = document.createElement('span'); a.textContent = label;
+      const b = document.createElement('span'); b.textContent = value;
+      d.appendChild(a); d.appendChild(b);
+      box.appendChild(d);
+    }
+
+    if (pricesError) { note('Impossible de charger les tarifs pour le moment. Réessaie dans un instant.'); return; }
+    if (!priceTable) { note('Chargement des tarifs…'); return; }
+    if (!months || !delivery) { note('Choisis une durée et un mode de livraison pour voir le prix.'); return; }
+
+    const d = priceTable.find((x) => x.months === months);
+    if (!d || d.priceCents === null || d.shippingCents[delivery] === null || d.shippingCents[delivery] === undefined) {
+      note("Le tarif de cette formule n'est pas encore disponible. Reviens bientôt !");
+      return;
+    }
+    const price = d.priceCents;
+    const ship = d.shippingCents[delivery];
+    line('Abonnement (' + d.shipments + ' envoi' + (d.shipments > 1 ? 's' : '') + ')', euros(price));
+    line('Livraison (' + d.shipments + ' envoi' + (d.shipments > 1 ? 's' : '') + ')', euros(ship));
+    line('Total à payer', euros(price + ship), true);
+    btn.textContent = 'Payer ' + euros(price + ship);
+    btn.disabled = submitting;
+  }
+
+  async function handleMailClubSubmit(event) {
+    event.preventDefault();
+    if (submitting) return false;
+
+    const months = selectedValue('mc-period');
+    const delivery = selectedValue('mc-delivery');
+    setInvalid('mc-period-field', !months);
+    setInvalid('mc-delivery-field', !delivery);
+    if (!months || !delivery) {
       showToast('Merci de corriger les champs en rouge.', true);
       return false;
     }
 
-    const subject = encodeURIComponent('Abonnement - La lettre de la culotte légère');
-    const body = encodeURIComponent(
-      `Période souhaitée : ${period}\n` +
-      `Nom / prénom : ${name}\n` +
-      `Contact : ${contact}\n` +
-      `Adresse : ${address}\n\n` +
-      `Lettre à 30€ + frais de port (remise en main propre possible sur Paris).`
-    );
+    submitting = true;
+    const btn = document.getElementById('mc-submit');
+    btn.disabled = true;
+    btn.textContent = 'Redirection vers le paiement…';
 
-    showToast('Ta messagerie va s\'ouvrir pour finaliser l\'envoi ✉️');
-    setTimeout(() => {
-      window.location.href = `mailto:titinoudupre@gmail.com?subject=${subject}&body=${body}`;
-    }, 600);
+    // Seuls la durée, la livraison et un contact facultatif sont envoyés : le serveur
+    // recalcule le prix, le port et le nombre d'envois.
+    const res = await fetch('/api/create-checkout-session', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        mailClub: {
+          months: Number(months),
+          delivery: delivery,
+          contact: document.getElementById('mc-contact').value.trim(),
+        },
+      }),
+    }).catch(() => null);
 
+    let data = {};
+    if (res) { try { data = await res.json(); } catch (e) { /* réponse vide */ } }
+
+    if (res && res.ok && typeof data.url === 'string' && data.url.indexOf('https://') === 0) {
+      window.location.href = data.url;
+      return false;
+    }
+
+    showToast((data && data.error) || (res ? 'Erreur lors de la création du paiement.' : 'Serveur injoignable.'), true);
+    submitting = false;
+    refreshSummary();
     return false;
   }
+
+  loadPrices();
 </script>
 
 <footer id="stringz-legal-footer">

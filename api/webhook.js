@@ -1,7 +1,9 @@
 const Stripe = require('stripe');
 const { sql } = require('../lib/db');
 const { applyRefundToOrder } = require('../lib/order-refund');
-const { isEmailConfigured, sendOrderConfirmation } = require('../lib/email');
+const { isEmailConfigured, sendOrderConfirmation, sendMailClubConfirmation } = require('../lib/email');
+const { findMailClubItem } = require('../lib/mail-club');
+const { activateMailClubSubscription } = require('../lib/mail-club-db');
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
@@ -104,7 +106,9 @@ async function sendConfirmationOnce(orderId) {
   `;
   if (!rows.length) return;
   try {
-    await sendOrderConfirmation(rows[0]);
+    // Commande Mail Club : e-mail dédié (durée, envois prévus, livraison) ; sinon, e-mail classique.
+    if (findMailClubItem(rows[0].items)) await sendMailClubConfirmation(rows[0]);
+    else await sendOrderConfirmation(rows[0]);
   } catch (err) {
     await sql`update orders set confirmation_email_sent_at = null where id = ${orderId}`;
     throw err;
@@ -151,7 +155,12 @@ async function handler(req, res) {
       // différé, on attend l'événement async_payment_succeeded.
       if (checkoutSession.payment_status === 'paid') {
         const orderId = await markOrderPaid(checkoutSession);
-        if (orderId) await sendConfirmationOnce(orderId);
+        if (orderId) {
+          // Mail Club : crée l'abonnement + ses envois APRÈS paiement confirmé (idempotent,
+          // sans effet sur une commande normale). En cas d'erreur → 500 → Stripe rejoue l'événement.
+          await activateMailClubSubscription(orderId, checkoutSession);
+          await sendConfirmationOnce(orderId);
+        }
       }
     } else if (event.type === 'checkout.session.expired' || event.type === 'checkout.session.async_payment_failed') {
       const checkoutSession = event.data.object;

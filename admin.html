@@ -544,6 +544,61 @@
     margin: 4px 0 10px;
   }
 
+
+  /* ---- Mail Club ---- */
+  #mc-filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+  .mc-filter-btn {
+    padding: 8px 12px; border-radius: 16px; border: 1px solid #ea8fb8; background: #fff;
+    color: #7a2350; font-size: 12px; font-weight: bold; cursor: pointer;
+  }
+  .mc-filter-btn.active { background: linear-gradient(#c2477a, #7a2350); color: #fff; border-color: #7a2350; }
+  #mc-empty-note {
+    background: #fdf3f7; border-radius: 10px; padding: 34px 20px; text-align: center;
+    box-shadow: 0 6px 14px rgba(0,0,0,0.12); display: none;
+  }
+  #mc-empty-note.show { display: block; }
+  #mc-empty-note .emoji { font-size: 32px; margin-bottom: 10px; }
+  #mc-empty-note p { font-size: 14px; color: #9a5c78; }
+  .mc-card {
+    background: #fdf3f7; border: 1px solid #ea8fb8; border-radius: 10px; padding: 14px 16px;
+    margin-bottom: 14px; box-shadow: 0 6px 14px rgba(0,0,0,0.12);
+  }
+  .mc-top { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .mc-id { font-weight: bold; font-size: 15px; color: #7a2350; }
+  .mc-name { font-size: 13px; color: #4a1a30; font-weight: bold; }
+  .mc-email { font-size: 12px; color: #9a5c78; }
+  .mc-badge { font-size: 11px; font-weight: bold; border-radius: 10px; padding: 2px 8px; background: #f6c3dc; color: #7a2350; }
+  .mc-badge.ok { background: #d7f5df; color: #0a7d2c; }
+  .mc-badge.warn { background: #ffe9c2; color: #a8690a; }
+  .mc-badge.bad { background: #ffd9d3; color: #a8241a; }
+  .mc-meta { font-size: 12px; color: #6a4358; margin-top: 6px; line-height: 1.6; }
+  .mc-meta b { color: #7a2350; }
+  .mc-toggle {
+    margin-top: 10px; background: none; border: none; color: #7a2350; font-weight: bold;
+    font-size: 12px; cursor: pointer; padding: 2px 0;
+  }
+  .mc-toggle:hover { text-decoration: underline; }
+  .mc-details { display: none; margin-top: 8px; border-top: 1px solid #f0b8d4; padding-top: 8px; }
+  .mc-details.open { display: block; }
+  .mc-ship-row {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 7px 0;
+    border-bottom: 1px solid #f6d3e3; font-size: 13px; color: #4a1a30;
+  }
+  .mc-ship-row .mc-ship-label { font-weight: bold; min-width: 70px; }
+  .mc-ship-row .mc-ship-state { flex: 1; min-width: 150px; }
+  .mc-ship-row.sent .mc-ship-state { color: #0a7d2c; }
+  .mc-ship-row.overdue .mc-ship-state { color: #a8241a; font-weight: bold; }
+  .mc-ship-btn {
+    padding: 6px 10px; border: none; border-radius: 6px; font-size: 11px; font-weight: bold; cursor: pointer;
+    background: #d3f0d8; color: #1a6b2c;
+  }
+  .mc-ship-btn:hover { background: #bce8c3; }
+  .mc-ship-btn.undo { background: #ffe9c2; color: #a8690a; }
+  .mc-ship-btn.undo:hover { background: #ffdca0; }
+  .mc-ship-btn:disabled { opacity: 0.5; cursor: wait; }
+  .mc-history { font-size: 11px; color: #9a5c78; margin-top: 8px; line-height: 1.6; }
+  .ord-mc-tag { font-size: 11px; font-weight: bold; color: #7a2350; background: #f6c3dc; border-radius: 10px; padding: 1px 7px; }
+
   #toast {
     position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
     background: linear-gradient(#c2477a, #7a2350); color: #fff; padding: 10px 18px; border-radius: 6px;
@@ -597,6 +652,12 @@
         <span class="cat-label">Commandes à expédier</span>
         <span class="cat-note">Adresse, ancienneté, validation d'envoi</span>
       </button>
+
+      <button class="category-btn" onclick="showSection('mailclub')">
+        <span class="cat-icon">💌</span>
+        <span class="cat-label">Mail Club</span>
+        <span class="cat-note">Abonnements, envois mensuels à cocher</span>
+      </button>
     </div>
 
     <!-- Section boutique -->
@@ -629,6 +690,23 @@
       <div id="orders-empty-note">
         <div class="emoji">📭</div>
         <p>Aucune commande en attente d'envoi pour le moment.</p>
+      </div>
+    </div>
+
+    <!-- Section Mail Club -->
+    <div class="admin-section" id="section-mailclub">
+      <button class="category-back-btn" onclick="showCategories()">← Retour aux catégories</button>
+      <div id="mc-filters">
+        <button class="mc-filter-btn" data-filter="due" onclick="setMailClubFilter('due')">📬 Envois à effectuer</button>
+        <button class="mc-filter-btn" data-filter="active" onclick="setMailClubFilter('active')">Abonnements actifs</button>
+        <button class="mc-filter-btn" data-filter="completed" onclick="setMailClubFilter('completed')">Terminés</button>
+        <button class="mc-filter-btn" data-filter="refunded" onclick="setMailClubFilter('refunded')">Remboursés</button>
+        <button class="mc-filter-btn" data-filter="all" onclick="setMailClubFilter('all')">Tous</button>
+      </div>
+      <div id="mc-list"></div>
+      <div id="mc-empty-note">
+        <div class="emoji">💌</div>
+        <p id="mc-empty-text">Aucun abonnement pour ce filtre.</p>
       </div>
     </div>
   </div>
@@ -788,6 +866,7 @@
     document.getElementById('section-boutique').classList.remove('show');
     document.getElementById('section-workshop').classList.remove('show');
     document.getElementById('section-orders').classList.remove('show');
+    document.getElementById('section-mailclub').classList.remove('show');
   }
 
   function showSection(name) {
@@ -795,7 +874,9 @@
     document.getElementById('section-boutique').classList.toggle('show', name === 'boutique');
     document.getElementById('section-workshop').classList.toggle('show', name === 'workshop');
     document.getElementById('section-orders').classList.toggle('show', name === 'orders');
+    document.getElementById('section-mailclub').classList.toggle('show', name === 'mailclub');
     if (name === 'orders') loadOrders();
+    if (name === 'mailclub') loadMailClub();
   }
 
   // Revérifie auprès du serveur (voir /api/auth/me) que la session admin est
@@ -1304,6 +1385,12 @@
     list.innerHTML = '';
     orderConfirmPending = null;
 
+    // Les commandes Mail Club ont leurs propres envois mensuels (section « Mail Club ») :
+    // on ne les met pas dans la file « à expédier » ; elles restent visibles (et
+    // remboursables) dans l'historique complet.
+    const isMailClubOrder = (o) => (o.items || []).some(it => it && it.mailClub);
+    if (!ordersShowAll()) orders = orders.filter(o => !isMailClubOrder(o));
+
     if (!orders.length) {
       emptyNote.classList.add('show');
       return;
@@ -1319,7 +1406,7 @@
         ? new Date(b.createdAt) - new Date(a.createdAt)
         : new Date(a.createdAt) - new Date(b.createdAt))
       .forEach(o => {
-        const canShip = !o.shippedAt && (o.status === 'paid' || o.status === 'partially_refunded');
+        const canShip = !isMailClubOrder(o) && !o.shippedAt && (o.status === 'paid' || o.status === 'partially_refunded');
         const statusBadge = (o.status !== 'paid' || o.shippedAt)
           ? `<span class="ord-status-badge">${stringzEscapeHtml(orderStatusLabel(o))}</span>` : '';
         const addr = formatAddress(o);
@@ -1344,6 +1431,7 @@
           <div class="order-summary">
             <div class="ord-top-row">
               <span class="ord-id">Commande #${o.id}</span>
+              ${isMailClubOrder(o) ? '<span class="ord-mc-tag">💌 Mail Club</span>' : ''}
               <span class="ord-elapsed">${formatElapsed(o.createdAt)}</span>
               ${statusBadge}
             </div>
@@ -1761,6 +1849,184 @@
       diapoPhotos.splice(index, 1);
       if (await persistDiapo(previous)) renderDiapoThumbs();
     } finally { diapoBusy = false; }
+  }
+
+
+  // ==================== Mail Club ====================
+  // Toutes les données viennent du serveur (/api/mail-club?mode=admin) et chaque
+  // clic « envoyé » est enregistré en base avant tout rafraîchissement d'affichage.
+  let mcFilter = 'due';
+  let mcCache = [];
+  let mcToday = null;
+  let mcBusy = false;
+  const mcOpen = new Set();
+
+  const MC_DELIVERY = { FR: 'Livraison France', INTL: 'Livraison étranger' };
+  const MC_FILTER_EMPTY = {
+    due: "Aucun envoi à effectuer pour l'instant. 🎉",
+    active: 'Aucun abonnement actif.',
+    completed: 'Aucun abonnement terminé.',
+    refunded: 'Aucun abonnement remboursé.',
+    all: "Aucun abonnement Mail Club pour l'instant.",
+  };
+
+  function mcDate(iso) {
+    if (!iso || typeof iso !== 'string') return '—';
+    const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    return m ? `${m[3]}/${m[2]}/${m[1]}` : '—';
+  }
+  function mcDateTime(value) {
+    if (!value) return '—';
+    const d = new Date(value);
+    return isNaN(d) ? '—' : d.toLocaleString('fr-FR');
+  }
+  function mcEuros(cents) { return (Number(cents || 0) / 100).toFixed(2).replace('.', ',') + ' €'; }
+
+  function setMailClubFilter(f) {
+    mcFilter = f;
+    loadMailClub();
+  }
+
+  async function loadMailClub() {
+    document.querySelectorAll('.mc-filter-btn').forEach(b => b.classList.toggle('active', b.dataset.filter === mcFilter));
+    const r = await stringzApiFetch('/api/mail-club?mode=admin&filter=' + encodeURIComponent(mcFilter));
+    if (!r.ok) {
+      showToast((r.data && r.data.error) || 'Impossible de charger le Mail Club.');
+      mcCache = [];
+      renderMailClub();
+      return;
+    }
+    mcCache = r.data.subscriptions || [];
+    mcToday = r.data.today || null;
+    renderMailClub();
+  }
+
+  function mcPaymentBadge(v) {
+    if (v.paymentStatus === 'refunded') return '<span class="mc-badge bad">Paiement remboursé</span>';
+    if (v.paymentStatus === 'partially_refunded') return '<span class="mc-badge warn">Partiellement remboursé</span>';
+    return '<span class="mc-badge ok">Payé</span>';
+  }
+  function mcStatusBadge(v) {
+    if (v.status === 'completed') return '<span class="mc-badge ok">Terminé</span>';
+    if (v.status === 'refunded') return '<span class="mc-badge bad">Arrêté (remboursé)</span>';
+    return '<span class="mc-badge">Actif</span>';
+  }
+
+  function renderMailClub() {
+    const list = document.getElementById('mc-list');
+    const empty = document.getElementById('mc-empty-note');
+    list.innerHTML = '';
+    if (!mcCache.length) {
+      document.getElementById('mc-empty-text').textContent = MC_FILTER_EMPTY[mcFilter] || MC_FILTER_EMPTY.all;
+      empty.classList.add('show');
+      return;
+    }
+    empty.classList.remove('show');
+
+    mcCache.forEach(v => {
+      const card = document.createElement('div');
+      card.className = 'mc-card';
+      card.dataset.id = v.id;
+      const isOpen = mcOpen.has(v.id);
+      const next = v.nextDueDate
+        ? `${mcDate(v.nextDueDate)}${mcToday && v.nextDueDate <= mcToday ? ' <span class="mc-badge warn">dû</span>' : ''}`
+        : '—';
+      const addr = v.shippingAddress || null;
+      const addrText = addr
+        ? [v.shippingName, addr.line1, addr.line2, [addr.postal_code, addr.city].filter(Boolean).join(' '), addr.country].filter(Boolean).map(stringzEscapeHtml).join('<br>')
+        : '';
+
+      card.innerHTML = `
+        <div class="mc-top">
+          <span class="mc-id">Commande #${stringzEscapeHtml(v.orderId)}</span>
+          ${mcStatusBadge(v)} ${mcPaymentBadge(v)}
+          ${v.dueNowCount > 0 ? `<span class="mc-badge warn">📬 ${v.dueNowCount} envoi${v.dueNowCount > 1 ? 's' : ''} à effectuer</span>` : ''}
+        </div>
+        <div class="mc-name">${stringzEscapeHtml(v.customerName || '—')}</div>
+        <div class="mc-email">${stringzEscapeHtml(v.customerEmail || '—')}</div>
+        <div class="mc-meta">
+          <b>Durée :</b> ${stringzEscapeHtml(v.months)} mois · <b>Début :</b> ${mcDate(v.startDate)} · <b>Fin :</b> ${mcDate(v.endDate)}<br>
+          <b>Envois :</b> ${v.sentCount} effectué${v.sentCount > 1 ? 's' : ''} / ${v.totalShipments} prévus · <b>Prochain envoi :</b> ${next}<br>
+          <b>Payé :</b> ${mcEuros(v.totalCents)}${v.refundedCents ? ` (remboursé : ${mcEuros(v.refundedCents)})` : ''} · <b>Livraison :</b> ${stringzEscapeHtml(MC_DELIVERY[v.delivery] || v.delivery)}
+        </div>
+        <button class="mc-toggle" onclick="toggleMailClubDetails('${stringzEscapeHtml(v.id)}')">${isOpen ? '▲ Masquer les envois' : '▼ Voir les envois et le détail'}</button>
+        <div class="mc-details ${isOpen ? 'open' : ''}" id="mc-details-${stringzEscapeHtml(v.id)}">
+          ${mcDetailsHtml(v, addrText)}
+        </div>
+      `;
+      list.appendChild(card);
+    });
+  }
+
+  function mcDetailsHtml(v, addrText) {
+    const rows = v.shipments.map(s => {
+      const prevAllSent = v.shipments.filter(x => x.seq < s.seq).every(x => x.sentAt);
+      const lastSent = s.sentAt && !v.shipments.some(x => x.seq > s.seq && x.sentAt);
+      const overdue = !s.sentAt && v.status === 'active' && mcToday && s.dueDate <= mcToday;
+      const sid = stringzEscapeHtml(s.id);
+      let action = '';
+      if (!s.sentAt && v.status === 'active' && prevAllSent) {
+        action = `<button class="mc-ship-btn" onclick="mcMarkSent('${sid}', this)">📦 Marquer comme envoyé</button>`;
+      } else if (lastSent) {
+        action = `<button class="mc-ship-btn undo" onclick="mcUnmarkSent('${sid}', this)">↩️ Corriger</button>`;
+      }
+      return `
+        <div class="mc-ship-row ${s.sentAt ? 'sent' : ''} ${overdue ? 'overdue' : ''}">
+          <span class="mc-ship-label">Envoi ${s.seq}</span>
+          <span class="mc-ship-state">${s.sentAt
+            ? `✅ Envoyé le ${mcDateTime(s.sentAt)}`
+            : `À envoyer — prévu le ${mcDate(s.dueDate)}${overdue ? ' (échu)' : ''}`}</span>
+          ${action}
+        </div>`;
+    }).join('');
+
+    const contactBits = [
+      v.phone ? `<b>Téléphone :</b> ${stringzEscapeHtml(v.phone)}` : '',
+      v.contactNote ? `<b>Autre contact :</b> ${stringzEscapeHtml(v.contactNote)}` : '',
+    ].filter(Boolean).join(' · ');
+
+    const events = (v.events || []).map(e =>
+      `${mcDateTime(e.at)} — envoi ${e.seq} ${e.action === 'sent' ? 'marqué envoyé' : 'remis « à envoyer » (correction)'}`
+    ).map(stringzEscapeHtml).join('<br>');
+
+    return `
+      ${rows}
+      ${v.paymentStatus === 'partially_refunded' ? '<div class="mc-history">⚠️ Remboursement partiel : les envois restants ne sont pas modifiés automatiquement. À toi de décider quoi faire.</div>' : ''}
+      ${addrText ? `<div class="mc-meta"><b>Adresse :</b><br>${addrText}</div>` : ''}
+      ${contactBits ? `<div class="mc-meta">${contactBits}</div>` : ''}
+      <div class="mc-meta"><b>Abonnement :</b> ${mcEuros(v.priceCents)} · <b>Livraison :</b> ${mcEuros(v.shippingCents)}${v.sessionId ? ` · <span style="color:#9a5c78;">Stripe : ${stringzEscapeHtml(v.sessionId)}</span>` : ''}</div>
+      ${events ? `<div class="mc-history"><b>Historique des modifications</b><br>${events}</div>` : ''}
+    `;
+  }
+
+  function toggleMailClubDetails(id) {
+    if (mcOpen.has(id)) mcOpen.delete(id); else mcOpen.add(id);
+    renderMailClub();
+  }
+
+  async function mcMarkSent(shipmentId, btn) {
+    if (mcBusy) return;
+    const ship = mcCache.flatMap(v => v.shipments.map(s => ({ ...s, sub: v }))).find(s => s.id === shipmentId);
+    if (!ship) return;
+    if (mcToday && ship.dueDate > mcToday &&
+        !confirm(`Cet envoi n'est prévu que le ${mcDate(ship.dueDate)}. Le marquer comme envoyé maintenant ?`)) return;
+    await mcPost('mark-sent', shipmentId, btn, 'Envoi marqué comme envoyé ✓');
+  }
+
+  async function mcUnmarkSent(shipmentId, btn) {
+    if (mcBusy) return;
+    if (!confirm("Remettre cet envoi « à envoyer » ? (correction d'une erreur — la modification est gardée dans l'historique)")) return;
+    await mcPost('unmark-sent', shipmentId, btn, 'Envoi remis « à envoyer » ✓');
+  }
+
+  async function mcPost(action, shipmentId, btn, okMessage) {
+    mcBusy = true;
+    if (btn) { btn.disabled = true; btn.textContent = '...'; }
+    const r = await stringzApiFetch('/api/mail-club?mode=admin', { method: 'POST', body: { action, shipmentId } });
+    mcBusy = false;
+    showToast(r.ok ? okMessage : ((r.data && r.data.error) || 'Erreur lors de la modification.'));
+    // Toujours recharger depuis le serveur : l'écran reflète la base, pas un état local.
+    await loadMailClub();
   }
 
   // ---- Démarrage ----
